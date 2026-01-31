@@ -1,0 +1,32 @@
+import { NextRequest } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { apiError, apiSuccess } from '@/lib/api-utils'
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return apiError('Unauthorized', 401)
+  }
+  
+  const { data, error } = await supabase
+    .from('enquiries')
+    .select(`
+      *,
+      customer:customers(id, name, email, address, phone),
+      items:enquiry_items(*, product:products(id, name, code))
+    `)
+    .eq('id', id)
+    .single()
+  
+  if (error) {
+    return apiError('Enquiry not found', 404)
+  }
+  
+  return apiSuccess(data)
+}

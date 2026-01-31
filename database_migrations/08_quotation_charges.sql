@@ -1,0 +1,5 @@
+-- Add charges to quotations
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS packing_charges DECIMAL(15,2) DEFAULT 0;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS freight_charges DECIMAL(15,2) DEFAULT 0;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS other_charges DECIMAL(15,2) DEFAULT 0;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS total_weight DECIMAL(15,2) DEFAULT 0;
