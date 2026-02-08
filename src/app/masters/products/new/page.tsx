@@ -41,6 +41,9 @@ export default function NewProductPage() {
   const [grade, setGrade] = useState("")
   const [schedule, setSchedule] = useState("")
   const [wallThickness, setWallThickness] = useState("")
+  const [weightPerUnit, setWeightPerUnit] = useState("")
+  const [standard, setStandard] = useState("")
+  const [manufacturer, setManufacturer] = useState("")
 
   useEffect(() => {
     fetch('/api/uom').then(res => res.json()).then(data => setUoms(data.data || []))
@@ -92,6 +95,9 @@ export default function NewProductPage() {
           grade: grade.trim() || null,
           schedule: schedule.trim() || null,
           wall_thickness: parseFloat(wallThickness) || null,
+          weight_per_unit: parseFloat(weightPerUnit) || null,
+          standard: standard.trim() || null,
+          manufacturer: manufacturer.trim() || null,
         }),
       })
 
@@ -236,6 +242,10 @@ export default function NewProductPage() {
                     <Input value={size} onChange={(e) => setSize(e.target.value)} placeholder="e.g. 1.5 inch" />
                   </div>
                   <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Standard / Specification</Label>
+                    <Input value={standard} onChange={(e) => setStandard(e.target.value)} placeholder="e.g. ASME B36.10 / A106" />
+                  </div>
+                  <div className="space-y-2">
                     <Label className="text-xs font-bold uppercase text-muted-foreground">Material Grade</Label>
                     <Input value={grade} onChange={(e) => setGrade(e.target.value)} placeholder="e.g. SS304L" />
                   </div>
@@ -246,6 +256,14 @@ export default function NewProductPage() {
                   <div className="space-y-2">
                     <Label className="text-xs font-bold uppercase text-muted-foreground">Wall Thickness (mm)</Label>
                     <Input type="number" value={wallThickness} onChange={(e) => setWallThickness(e.target.value)} placeholder="0.00" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Weight per Unit (kg/m)</Label>
+                    <Input type="number" value={weightPerUnit} onChange={(e) => setWeightPerUnit(e.target.value)} placeholder="0.00" />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Preferred Manufacturer</Label>
+                    <Input value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} placeholder="e.g. Jindal, MSL, JSL" />
                   </div>
                 </CardContent>
               </Card>

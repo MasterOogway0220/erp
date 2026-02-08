@@ -23,7 +23,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, AlertTriangle, Eye } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Plus, AlertTriangle, Eye, ClipboardCheck } from "lucide-react"
 import { useState } from "react"
 
 const statusColors: Record<string, string> = {
@@ -42,11 +49,14 @@ export default function NCRPage() {
   const [heatNumber, setHeatNumber] = useState("")
   const [description, setDescription] = useState("")
   const [rootCause, setRootCause] = useState("")
+  const [rcaMethod, setRcaMethod] = useState("5-Why")
+  const [preventiveAction, setPreventiveAction] = useState("")
+  const [targetDate, setTargetDate] = useState("")
   const [correctiveAction, setCorrectiveAction] = useState("")
-  
+
   const handleSubmit = () => {
     if (!productName || !description) return
-    
+
     const newNCR: NCR = {
       id: Math.random().toString(36).substring(2, 15),
       ncrNumber: generateNumber("NCR"),
@@ -57,27 +67,37 @@ export default function NCRPage() {
       raisedBy: "Admin User",
       createdAt: new Date().toISOString().split("T")[0],
     }
-    
+
     addNCR(newNCR)
     setOpen(false)
     setProductName("")
     setHeatNumber("")
     setDescription("")
   }
-  
+
   const handleUpdateNCR = () => {
     if (!selectedNCR) return
-    
+
     updateNCR(selectedNCR.id, {
-      rootCause,
-      correctiveAction,
+      root_cause: rootCause,
+      rca_method: rcaMethod,
+      preventive_action: preventiveAction,
+      target_closure_date: targetDate,
+      corrective_action: correctiveAction,
       status: correctiveAction ? "action_taken" : "under_investigation",
     })
     setViewOpen(false)
+    resetNCRState()
+  }
+
+  const resetNCRState = () => {
     setRootCause("")
+    setRcaMethod("5-Why")
+    setPreventiveAction("")
+    setTargetDate("")
     setCorrectiveAction("")
   }
-  
+
   const handleCloseNCR = (id: string) => {
     updateNCR(id, {
       status: "closed",
@@ -85,7 +105,7 @@ export default function NCRPage() {
       closedAt: new Date().toISOString().split("T")[0],
     })
   }
-  
+
   return (
     <PageLayout title="NCR">
       <div className="space-y-6">
@@ -138,7 +158,7 @@ export default function NCRPage() {
             </DialogContent>
           </Dialog>
         </div>
-        
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
           <Card>
             <CardContent className="p-4">
@@ -193,7 +213,7 @@ export default function NCRPage() {
             </CardContent>
           </Card>
         </div>
-        
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">All NCRs</CardTitle>
@@ -271,7 +291,7 @@ export default function NCRPage() {
             </Table>
           </CardContent>
         </Card>
-        
+
         <Dialog open={viewOpen} onOpenChange={setViewOpen}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
@@ -299,14 +319,39 @@ export default function NCRPage() {
                     </Badge>
                   </div>
                 </div>
-                
+
                 <div>
                   <Label className="text-muted-foreground">Description</Label>
                   <p className="mt-1 p-3 bg-muted rounded-lg text-sm">{selectedNCR.description}</p>
                 </div>
-                
+
                 {selectedNCR.status !== "closed" && (
                   <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>RCA Method</Label>
+                        <Select value={rcaMethod} onValueChange={setRcaMethod}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select Method" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="5-Why">5-Why Analysis</SelectItem>
+                            <SelectItem value="Fishbone">Fishbone (Ishikawa)</SelectItem>
+                            <SelectItem value="Pareto">Pareto Analysis</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Target Closure Date</Label>
+                        <Input
+                          type="date"
+                          value={targetDate}
+                          onChange={(e) => setTargetDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
                       <Label>Root Cause Analysis</Label>
                       <Textarea
@@ -316,7 +361,7 @@ export default function NCRPage() {
                         rows={3}
                       />
                     </div>
-                    
+
                     <div className="space-y-2">
                       <Label>Corrective Action</Label>
                       <Textarea
@@ -326,13 +371,23 @@ export default function NCRPage() {
                         rows={3}
                       />
                     </div>
-                    
+
+                    <div className="space-y-2">
+                      <Label>Preventive Action</Label>
+                      <Textarea
+                        value={preventiveAction}
+                        onChange={(e) => setPreventiveAction(e.target.value)}
+                        placeholder="Steps to prevent recurrence (ISO 10.2)..."
+                        rows={3}
+                      />
+                    </div>
+
                     <Button onClick={handleUpdateNCR} className="w-full">
-                      Update NCR
+                      Update & Action Taken
                     </Button>
                   </>
                 )}
-                
+
                 {selectedNCR.status === "closed" && (
                   <div className="space-y-4">
                     <div>

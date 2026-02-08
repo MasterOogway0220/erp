@@ -15,14 +15,16 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('inspection_status')
   const productId = searchParams.get('product_id')
+  const heatNumber = searchParams.get('heat_number')
+  const warehouseId = searchParams.get('warehouse_id')
+  const search = searchParams.get('search')
 
   let query = supabase
     .from('inventory')
     .select(`
       *,
-      product:products(id, name, code),
+      product:products!inner(id, name, code, material_grade, standard),
       grn:grn(id, grn_number),
-      purchase_order:purchase_orders(id, po_number),
       warehouse:warehouses(id, name, code)
     `)
     .order('created_at', { ascending: false })
@@ -32,6 +34,16 @@ export async function GET(request: NextRequest) {
   }
   if (productId) {
     query = query.eq('product_id', productId)
+  }
+  if (heatNumber) {
+    query = query.ilike('heat_number', `%${heatNumber}%`)
+  }
+  if (warehouseId) {
+    query = query.eq('warehouse_id', warehouseId)
+  }
+  if (search) {
+    // Search across name, code, heat_number
+    query = query.or(`heat_number.ilike.%${search}%,product.name.ilike.%${search}%,product.code.ilike.%${search}%`)
   }
 
   const { data, error } = await query
@@ -59,7 +71,7 @@ export async function POST(request: NextRequest) {
     return apiError(validation.error.issues[0].message)
   }
 
-  const { grn_id, inventory_id, result, checklist, remarks } = validation.data
+  const { grn_id, inventory_id, result, checklist, test_results, remarks } = validation.data
 
   const { data: invItem, error: invError } = await adminClient
     .from('inventory')
@@ -105,6 +117,7 @@ export async function POST(request: NextRequest) {
       result,
       checklist,
       remarks,
+      heat_number: invItem.heat_number,
       inspected_by: user.id,
     })
     .select()
@@ -112,6 +125,20 @@ export async function POST(request: NextRequest) {
 
   if (inspError) {
     return apiError(inspError.message)
+  }
+
+  // Persist granular test results if provided
+  if (test_results && test_results.length > 0) {
+    const { error: resultsError } = await adminClient
+      .from('inspection_test_results')
+      .insert(test_results.map(tr => ({
+        ...tr,
+        inspection_id: inspection.id
+      })))
+
+    if (resultsError) {
+      console.error('Failed to save test results:', resultsError)
+    }
   }
 
   if (result === 'rejected') {

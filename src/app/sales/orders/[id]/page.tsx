@@ -153,8 +153,18 @@ export default function SalesOrderDetailPage() {
           </div>
           <div className="flex gap-2">
             <Button variant="outline" asChild>
+              <Link href={`/sales/orders/${order.id}/tracking`}>
+                <Clock className="mr-2 h-4 w-4" /> Track Order
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
               <Link href={`/inventory/dispatch/new?soId=${order.id}`}>
                 <Truck className="mr-2 h-4 w-4" /> Dispatch
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href={`/purchase/orders/new?soId=${order.id}`}>
+                <Package className="mr-2 h-4 w-4" /> Create PO
               </Link>
             </Button>
             <Button className="bg-primary text-white font-bold shadow-md hover:shadow-lg transition-all">

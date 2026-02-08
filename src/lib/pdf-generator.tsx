@@ -222,7 +222,7 @@ export const QuotationPDF = ({ data, showPrice, company }: QuotationProps) => (
             <View style={{ marginTop: 20 }}>
                 <Text style={styles.label}>Terms & Conditions:</Text>
                 {(data.terms || []).map((term: any, idx: number) => (
-                    <Text key={idx} style={{ marginBottom: 2 }}>{idx + 1}. {term.custom_text || term.description}</Text>
+                    <Text key={idx} style={{ marginBottom: 2 }}>{term.display_order}. {term.custom_text || term.description}</Text>
                 ))}
             </View>
 

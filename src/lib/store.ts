@@ -3,11 +3,43 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-interface UIState {
+export interface NCR {
+  id: string
+  ncrNumber: string
+  productName?: string
+  heatNumber?: string
+  description: string
+  root_cause?: string
+  rca_method?: string
+  preventive_action?: string
+  target_closure_date?: string
+  corrective_action?: string
+  status: 'open' | 'under_investigation' | 'action_taken' | 'closed'
+  raisedBy: string
+  createdAt: string
+  closedBy?: string
+  closedAt?: string
+  // Legacy camelCase for some store logic
+  rootCause?: string
+  correctiveAction?: string
+}
+
+export interface GRN {
+  id: string
+  grnNumber: string
+  poNumber: string
+  vendorName: string
+  receivedDate: string
+  receivedBy: string
+  status: string
+  items: any[]
+}
+
+export interface UIState {
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
   toggleSidebar: () => void
-  
+
   filters: {
     dateFrom?: string
     dateTo?: string
@@ -18,7 +50,7 @@ interface UIState {
   }
   setFilters: (filters: Partial<UIState['filters']>) => void
   clearFilters: () => void
-  
+
   pagination: {
     page: number
     pageSize: number
@@ -33,19 +65,19 @@ export const useUIStore = create<UIState>()(
       sidebarOpen: true,
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-      
+
       filters: {},
-      setFilters: (filters) => set((state) => ({ 
-        filters: { ...state.filters, ...filters } 
+      setFilters: (filters) => set((state) => ({
+        filters: { ...state.filters, ...filters }
       })),
       clearFilters: () => set({ filters: {} }),
-      
+
       pagination: {
         page: 1,
         pageSize: 10,
       },
-      setPagination: (pagination) => set((state) => ({ 
-        pagination: { ...state.pagination, ...pagination } 
+      setPagination: (pagination) => set((state) => ({
+        pagination: { ...state.pagination, ...pagination }
       })),
       resetPagination: () => set({ pagination: { page: 1, pageSize: 10 } }),
     }),
@@ -58,8 +90,8 @@ export const useUIStore = create<UIState>()(
 // Re-export useStore as an alias to useUIStore to prevent build errors
 // while we transition business data to APIs.
 // @ts-ignore
-export const useStore = (...args: any[]) => {
-  const uiStore = useUIStore(...args)
+export const useStore = (): any => {
+  const uiStore = useUIStore()
   return {
     ...uiStore,
     // Provide empty arrays for business data to prevent crashes
@@ -81,9 +113,11 @@ export const useStore = (...args: any[]) => {
     mtcs: [],
     notifications: [],
     // Provide dummy functions to prevent crashes
-    addInvoice: () => {},
-    addPayment: () => {},
-    addPurchaseRequest: () => {},
+    addInvoice: () => { },
+    addPayment: () => { },
+    addPurchaseRequest: () => { },
+    addNCR: () => { },
+    updateNCR: () => { },
     generateNumber: (prefix: string) => {
       const year = new Date().getFullYear()
       const random = Math.floor(1000 + Math.random() * 9000)

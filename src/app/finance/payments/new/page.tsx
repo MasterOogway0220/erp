@@ -2,7 +2,6 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { PageLayout } from "@/components/page-layout"
-import { useStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -15,325 +14,351 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { ArrowLeft, AlertCircle, CheckCircle, CreditCard, Loader2 } from "lucide-react"
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { ArrowLeft, AlertCircle, Loader2, Plus, Trash2, IndianRupee } from "lucide-react"
 import { useState, useEffect, Suspense } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 
+interface Invoice {
+  id: string
+  invoice_number: string
+  total_amount: number
+  paid_amount: number
+  currency: string
+}
+
 function NewPaymentForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const invoiceId = searchParams.get("invoiceId")
-  
-  const { invoices } = useStore()
-  
-  const unpaidInvoices = invoices.filter(inv => 
-    inv.status === "sent" || inv.status === "partial_paid" || inv.status === "overdue"
-  )
-  
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState(invoiceId || "")
-  const [amount, setAmount] = useState("")
-  const [paymentMode, setPaymentMode] = useState<"cash" | "cheque" | "neft" | "rtgs" | "upi">("neft")
+  const initialInvoiceId = searchParams.get("invoiceId")
+
+  const [customers, setCustomers] = useState<any[]>([])
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitLoading, setSubmitLoading] = useState(false)
+  const [selectedCustomerId, setSelectedCustomerId] = useState("")
+  const [amount, setAmount] = useState<number>(0)
+  const [paymentMode, setPaymentMode] = useState("neft")
   const [referenceNumber, setReferenceNumber] = useState("")
-  const [paymentDate, setPaymentDate] = useState("")
+  const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split("T")[0])
+  const [bankDetails, setBankDetails] = useState("")
+  const [remarks, setRemarks] = useState("")
+  const [allocations, setAllocations] = useState<{ invoice_id: string, amount: number }[]>([])
   const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
-  
+
   useEffect(() => {
-    setPaymentDate(new Date().toISOString().split("T")[0])
-  }, [])
-  
-  const selectedInvoice = invoices.find(inv => inv.id === selectedInvoiceId)
-  const outstanding = selectedInvoice ? selectedInvoice.total - selectedInvoice.paidAmount : 0
-  
-  useEffect(() => {
-    if (selectedInvoice && outstanding > 0) {
-      setAmount(outstanding.toString())
-    }
-  }, [selectedInvoice, outstanding])
-  
-  const isInvoiceValid = selectedInvoice && (selectedInvoice.status === "sent" || selectedInvoice.status === "partial_paid" || selectedInvoice.status === "overdue")
-  
-  const validateForm = () => {
-    setError("")
-    
-    if (!selectedInvoiceId) {
-      setError("Please select an Invoice")
-      return false
-    }
-    
-    if (!selectedInvoice) {
-      setError("Invoice not found")
-      return false
-    }
-    
-    if (!isInvoiceValid) {
-      setError("Cannot record payment. Invoice must be sent first.")
-      return false
-    }
-    
-    const paymentAmount = parseFloat(amount)
-    
-    if (isNaN(paymentAmount) || paymentAmount <= 0) {
-      setError("Please enter a valid payment amount")
-      return false
-    }
-    
-    if (paymentAmount > outstanding) {
-      setError(`Payment amount cannot exceed outstanding balance (${selectedInvoice.currency === "INR" ? "₹" : "$"}${outstanding.toLocaleString()})`)
-      return false
-    }
-    
-    if (!paymentDate) {
-      setError("Please select payment date")
-      return false
-    }
-    
-    if (paymentMode !== "cash" && !referenceNumber.trim()) {
-      setError("Please enter reference number for non-cash payments")
-      return false
-    }
-    
-    return true
-  }
-  
-  const handleSubmit = async () => {
-    if (!validateForm()) return
-    
-    setLoading(true)
-    
-    try {
-      const response = await fetch("/api/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          invoice_id: selectedInvoiceId,
-          amount: parseFloat(amount),
-          payment_mode: paymentMode,
-          reference_number: referenceNumber.trim() || undefined,
-          payment_date: paymentDate,
-        }),
-      })
-      
-      const result = await response.json()
-      
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to record payment")
+    const fetchCustomers = async () => {
+      try {
+        const res = await fetch('/api/customers')
+        const data = await res.json()
+        setCustomers(data.data || [])
+
+        if (initialInvoiceId) {
+          const invRes = await fetch(`/api/invoices/${initialInvoiceId}`)
+          const invData = await invRes.json()
+          if (invData.data) {
+            setSelectedCustomerId(invData.data.customer_id)
+            setAllocations([{ invoice_id: initialInvoiceId, amount: invData.data.total_amount - (invData.data.paid_amount || 0) }])
+            setAmount(invData.data.total_amount - (invData.data.paid_amount || 0))
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching customers:', err)
+      } finally {
+        setLoading(false)
       }
-      
-      router.push(`/finance/invoices/${selectedInvoiceId}`)
+    }
+    fetchCustomers()
+  }, [initialInvoiceId])
+
+  useEffect(() => {
+    if (selectedCustomerId) {
+      const fetchInvoices = async () => {
+        try {
+          const res = await fetch(`/api/invoices?customer_id=${selectedCustomerId}&status=sent,partial_paid,overdue`)
+          const data = await res.json()
+          setInvoices(data.data || [])
+        } catch (err) {
+          console.error('Error fetching invoices:', err)
+        }
+      }
+      fetchInvoices()
+    } else {
+      setInvoices([])
+    }
+  }, [selectedCustomerId])
+
+  const handleAddAllocation = () => {
+    setAllocations([...allocations, { invoice_id: "", amount: 0 }])
+  }
+
+  const handleRemoveAllocation = (index: number) => {
+    const newAllocations = [...allocations]
+    newAllocations.splice(index, 1)
+    setAllocations(newAllocations)
+  }
+
+  const handleAllocationChange = (index: number, field: string, value: any) => {
+    const newAllocations = [...allocations]
+    newAllocations[index] = { ...newAllocations[index], [field]: value }
+
+    // If updating invoice, pre-fill balance
+    if (field === 'invoice_id') {
+      const invoice = invoices.find(inv => inv.id === value)
+      if (invoice) {
+        newAllocations[index].amount = invoice.total_amount - (invoice.paid_amount || 0)
+      }
+    }
+
+    setAllocations(newAllocations)
+
+    // Update total amount if only one allocation or if it's the sum
+    const totalAllocated = newAllocations.reduce((sum, a) => sum + (Number(a.amount) || 0), 0)
+    setAmount(totalAllocated)
+  }
+
+  const handleSubmit = async () => {
+    setError("")
+    if (!selectedCustomerId || amount <= 0 || !receiptDate) {
+      setError("Please fill in all required fields")
+      return
+    }
+
+    const totalAllocated = allocations.reduce((sum, a) => sum + (Number(a.amount) || 0), 0)
+    if (totalAllocated > amount) {
+      setError("Total allocated amount exceeds receipt amount")
+      return
+    }
+
+    try {
+      setSubmitLoading(true)
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_id: selectedCustomerId,
+          amount,
+          payment_mode: paymentMode,
+          reference_number: referenceNumber,
+          receipt_date: receiptDate,
+          bank_details: bankDetails,
+          remarks,
+          allocations: allocations.filter(a => a.invoice_id && a.amount > 0)
+        })
+      })
+
+      const result = await res.json()
+      if (res.ok) {
+        router.push(`/finance/payments/${result.data.id}`)
+      } else {
+        setError(result.error || "Failed to record payment")
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to record payment")
+      setError("An error occurred while submitting payment")
     } finally {
-      setLoading(false)
-      setShowConfirm(false)
+      setSubmitLoading(false)
     }
   }
-  
+
+  if (loading) {
+    return (
+      <PageLayout title="New Payment">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </PageLayout>
+    )
+  }
+
   return (
     <PageLayout title="Record Payment">
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Record Payment</h2>
-            <p className="text-muted-foreground">
-              Record payment received against an invoice
-            </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">New Payment Receipt</h2>
+              <p className="text-muted-foreground">Record customer payment and allocate to invoices</p>
+            </div>
           </div>
+          <Button onClick={handleSubmit} disabled={submitLoading}>
+            {submitLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save Receipt
+          </Button>
         </div>
-        
+
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        
-        <Alert>
-          <CheckCircle className="h-4 w-4" />
-          <AlertDescription>
-            Payments can only be recorded against sent invoices. Payment amount cannot exceed outstanding balance.
-          </AlertDescription>
-        </Alert>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="md:col-span-1">
             <CardHeader>
-              <CardTitle className="text-base">Select Invoice</CardTitle>
-              <CardDescription>Choose an invoice to record payment against</CardDescription>
+              <CardTitle className="text-base text-primary">Payment Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Invoice *</Label>
-                <Select value={selectedInvoiceId} onValueChange={setSelectedInvoiceId}>
+                <Label>Customer *</Label>
+                <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select invoice" />
+                    <SelectValue placeholder="Select customer" />
                   </SelectTrigger>
                   <SelectContent>
-                    {unpaidInvoices.length === 0 ? (
-                      <SelectItem value="none" disabled>No unpaid invoices available</SelectItem>
-                    ) : (
-                      unpaidInvoices.map(inv => (
-                        <SelectItem key={inv.id} value={inv.id}>
-                          {inv.invoiceNumber} - {inv.customerName} ({inv.currency === "INR" ? "₹" : "$"}{(inv.total - inv.paidAmount).toLocaleString()} due)
-                        </SelectItem>
-                      ))
-                    )}
+                    {customers.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-              
-              {selectedInvoice && (
-                <div className="bg-muted/50 p-4 rounded-lg space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Invoice No:</span>
-                    <span className="font-mono font-medium">{selectedInvoice.invoiceNumber}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Customer:</span>
-                    <span className="font-medium">{selectedInvoice.customerName}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Invoice Total:</span>
-                    <span className="font-medium">
-                      {selectedInvoice.currency === "INR" ? "₹" : "$"}{selectedInvoice.total.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Already Paid:</span>
-                    <span className="font-medium text-green-600">
-                      {selectedInvoice.currency === "INR" ? "₹" : "$"}{selectedInvoice.paidAmount.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between border-t pt-2">
-                    <span className="text-sm font-medium">Outstanding:</span>
-                    <span className="font-bold text-lg text-orange-600">
-                      {selectedInvoice.currency === "INR" ? "₹" : "$"}{outstanding.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Status:</span>
-                    <Badge variant="outline">{selectedInvoice.status.replace(/_/g, " ")}</Badge>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <CreditCard className="h-4 w-4" /> Payment Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+
               <div className="space-y-2">
-                <Label>Payment Amount *</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max={outstanding}
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="Enter amount"
-                />
-                {selectedInvoice && (
-                  <p className="text-xs text-muted-foreground">
-                    Max: {selectedInvoice.currency === "INR" ? "₹" : "$"}{outstanding.toLocaleString()}
-                  </p>
-                )}
+                <Label>Total Receipt Amount *</Label>
+                <div className="relative">
+                  <IndianRupee className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    value={amount}
+                    onChange={(e) => setAmount(Number(e.target.value))}
+                    className="pl-8"
+                  />
+                </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label>Payment Mode *</Label>
-                <Select value={paymentMode} onValueChange={(val) => setPaymentMode(val as typeof paymentMode)}>
+                <Select value={paymentMode} onValueChange={setPaymentMode}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Mode" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="cheque">Cheque</SelectItem>
-                    <SelectItem value="neft">NEFT</SelectItem>
-                    <SelectItem value="rtgs">RTGS</SelectItem>
+                    <SelectItem value="neft">NEFT / RTGS</SelectItem>
                     <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="wire">Wire Transfer</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="space-y-2">
-                <Label>Reference Number {paymentMode !== "cash" ? "*" : ""}</Label>
-                <Input
-                  value={referenceNumber}
-                  onChange={(e) => setReferenceNumber(e.target.value)}
-                  placeholder={paymentMode === "cheque" ? "Cheque number" : paymentMode === "upi" ? "UPI transaction ID" : "Transaction reference"}
-                />
+                <Label>Reference (UTR/Cheque No.)</Label>
+                <Input value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="Enter reference number" />
               </div>
-              
+
               <div className="space-y-2">
-                <Label>Payment Date *</Label>
-                <Input
-                  type="date"
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                />
+                <Label>Receipt Date *</Label>
+                <Input type="date" value={receiptDate} onChange={(e) => setReceiptDate(e.target.value)} />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Bank Details</Label>
+                <Input value={bankDetails} onChange={(e) => setBankDetails(e.target.value)} placeholder="Bank name, branch" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="md:col-span-2">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base text-primary">Invoice Allocations</CardTitle>
+                <CardDescription>Allocate this payment to outstanding invoices</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleAddAllocation}>
+                <Plus className="mr-2 h-4 w-4" /> Add Allocation
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[300px]">Invoice</TableHead>
+                    <TableHead className="text-right">OS Balance</TableHead>
+                    <TableHead className="text-right">Allocated Amount</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allocations.map((alloc, index) => {
+                    const invoice = invoices.find(i => i.id === alloc.invoice_id)
+                    const balance = invoice ? (invoice.total_amount - (invoice.paid_amount || 0)) : 0
+
+                    return (
+                      <TableRow key={index}>
+                        <TableCell>
+                          <Select
+                            value={alloc.invoice_id}
+                            onValueChange={(val) => handleAllocationChange(index, 'invoice_id', val)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select invoice" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {invoices.length === 0 ? (
+                                <SelectItem value="none" disabled>No outstanding invoices</SelectItem>
+                              ) : (
+                                invoices.map(inv => (
+                                  <SelectItem key={inv.id} value={inv.id}>
+                                    {inv.invoice_number} (₹{(inv.total_amount - (inv.paid_amount || 0)).toLocaleString()})
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          ₹{balance.toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            value={alloc.amount}
+                            onChange={(e) => handleAllocationChange(index, 'amount', Number(e.target.value))}
+                            className="text-right"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" onClick={() => handleRemoveAllocation(index)} className="text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                  {allocations.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground italic">
+                        No allocations added. Receipt will be recorded as unallocated.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+
+              <div className="flex justify-end p-4 bg-muted/20 mt-4 rounded-lg">
+                <div className="space-y-1 text-right">
+                  <div className="text-sm text-muted-foreground">Total Allocated</div>
+                  <div className="text-xl font-bold">₹{allocations.reduce((sum, a) => sum + (Number(a.amount) || 0), 0).toLocaleString()}</div>
+                  {amount > 0 && allocations.reduce((sum, a) => sum + (Number(a.amount) || 0), 0) < amount && (
+                    <div className="text-xs text-orange-600">Unallocated: ₹{(amount - allocations.reduce((sum, a) => sum + (Number(a.amount) || 0), 0)).toLocaleString()}</div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
         </div>
-        
-        <div className="flex justify-end gap-3">
-          <Button variant="outline" onClick={() => router.back()} disabled={loading}>
-            Cancel
-          </Button>
-          <Button onClick={() => {
-            if (validateForm()) setShowConfirm(true)
-          }} disabled={!isInvoiceValid || loading}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Record Payment
-          </Button>
-        </div>
       </div>
-      
-      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Payment Recording</DialogTitle>
-            <DialogDescription>
-              You are about to record a payment of {selectedInvoice?.currency === "INR" ? "₹" : "$"}{parseFloat(amount || "0").toLocaleString()} against invoice {selectedInvoice?.invoiceNumber}.
-              <br /><br />
-              <strong>Payment Mode:</strong> {paymentMode.toUpperCase()}
-              {referenceNumber && (
-                <>
-                  <br />
-                  <strong>Reference:</strong> {referenceNumber}
-                </>
-              )}
-              <br /><br />
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirm(false)} disabled={loading}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit} disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Confirm Payment
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </PageLayout>
   )
 }
@@ -341,9 +366,9 @@ function NewPaymentForm() {
 export default function NewPaymentPage() {
   return (
     <Suspense fallback={
-      <PageLayout title="Record Payment">
+      <PageLayout title="New Payment">
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </PageLayout>
     }>

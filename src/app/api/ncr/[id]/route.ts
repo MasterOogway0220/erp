@@ -8,6 +8,10 @@ const updateNCRSchema = z.object({
   status: z.enum(['open', 'under_investigation', 'action_taken', 'closed']).optional(),
   corrective_action: z.string().optional(),
   root_cause: z.string().optional(),
+  rca_method: z.string().optional(),
+  preventive_action: z.string().optional(),
+  responsible_person_id: z.string().uuid().optional(),
+  target_closure_date: z.string().optional(),
   closed_at: z.string().optional(),
 })
 
@@ -17,12 +21,12 @@ export async function GET(
 ) {
   const supabase = await createClient()
   const { id } = await params
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return apiError('Unauthorized', 401)
   }
-  
+
   const { data, error } = await supabase
     .from('ncr')
     .select(`
@@ -31,11 +35,11 @@ export async function GET(
     `)
     .eq('id', id)
     .single()
-  
+
   if (error) {
     return apiError(error.message)
   }
-  
+
   return apiSuccess(data)
 }
 
@@ -46,43 +50,43 @@ export async function PATCH(
   const supabase = await createClient()
   const adminClient = createAdminClient()
   const { id } = await params
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return apiError('Unauthorized', 401)
   }
-  
+
   const body = await request.json()
   const validation = updateNCRSchema.safeParse(body)
-  
+
   if (!validation.success) {
-    return apiError(validation.error.errors[0].message)
+    return apiError(validation.error.issues[0].message)
   }
-  
+
   const { data: ncr, error: fetchError } = await adminClient
     .from('ncr')
     .select('*')
     .eq('id', id)
     .single()
-  
+
   if (fetchError || !ncr) {
     return apiError('NCR not found')
   }
-  
+
   const oldData = { ...ncr }
-  
+
   const { data: updated, error: updateError } = await adminClient
     .from('ncr')
     .update(validation.data)
     .eq('id', id)
     .select()
     .single()
-  
+
   if (updateError) {
     return apiError(updateError.message)
   }
-  
+
   await logAuditEvent('ncr', id, 'UPDATE', oldData, updated, user.id)
-  
+
   return apiSuccess(updated)
 }

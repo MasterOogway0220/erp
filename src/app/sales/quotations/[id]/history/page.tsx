@@ -31,9 +31,10 @@ const statusColors: Record<string, string> = {
 export default function QuotationHistoryPage() {
     const params = useParams()
     const router = useRouter()
-    const [history, setHistory] = useState<any[]>([])
+    const [historyData, setHistoryData] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState("")
+    const [selectedVersions, setSelectedVersions] = useState<string[]>([])
 
     useEffect(() => {
         const fetchHistory = async () => {
@@ -42,7 +43,7 @@ export default function QuotationHistoryPage() {
                 const response = await fetch(`/api/quotations/${params.id}/history`)
                 const result = await response.json()
                 if (response.ok) {
-                    setHistory(result.data)
+                    setHistoryData(result.data)
                 } else {
                     setError(result.error || 'Failed to fetch revision history')
                 }
@@ -54,6 +55,25 @@ export default function QuotationHistoryPage() {
         }
         fetchHistory()
     }, [params.id])
+
+    const toggleVersionSelection = (versionId: string) => {
+        if (selectedVersions.includes(versionId)) {
+            setSelectedVersions(selectedVersions.filter(id => id !== versionId))
+        } else {
+            if (selectedVersions.length >= 2) {
+                // Replace the first one (optional behavior, or just block)
+                setSelectedVersions([selectedVersions[1], versionId])
+            } else {
+                setSelectedVersions([...selectedVersions, versionId])
+            }
+        }
+    }
+
+    const handleCompare = () => {
+        if (selectedVersions.length === 2) {
+            router.push(`/sales/quotations/${selectedVersions[0]}/history/compare?v1=${selectedVersions[0]}&v2=${selectedVersions[1]}`)
+        }
+    }
 
     if (loading) {
         return (
@@ -68,16 +88,25 @@ export default function QuotationHistoryPage() {
     return (
         <PageLayout title="Quotation History">
             <div className="space-y-6">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" onClick={() => router.back()}>
-                        <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    <div>
-                        <h2 className="text-2xl font-bold tracking-tight">Revision History</h2>
-                        <p className="text-muted-foreground">
-                            Timeline of all revisions for {history[0]?.quotation_number}
-                        </p>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+                            <ArrowLeft className="h-4 w-4" />
+                        </Button>
+                        <div>
+                            <h2 className="text-2xl font-bold tracking-tight">Revision History</h2>
+                            <p className="text-muted-foreground">
+                                Timeline of all revisions for {historyData[0]?.quotation_number}
+                            </p>
+                        </div>
                     </div>
+                    <Button
+                        onClick={handleCompare}
+                        disabled={selectedVersions.length !== 2}
+                        variant={selectedVersions.length === 2 ? "default" : "secondary"}
+                    >
+                        Compare Selected ({selectedVersions.length}/2)
+                    </Button>
                 </div>
 
                 {error && (
@@ -94,13 +123,14 @@ export default function QuotationHistoryPage() {
                             Document Versions
                         </CardTitle>
                         <CardDescription>
-                            Older revisions are locked and preserved for audit purposes.
+                            Select two versions to compare changes.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead className="w-12">Select</TableHead>
                                     <TableHead>Revision</TableHead>
                                     <TableHead>Date</TableHead>
                                     <TableHead>Status</TableHead>
@@ -110,8 +140,16 @@ export default function QuotationHistoryPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {history.map((rev) => (
+                                {historyData.map((rev) => (
                                     <TableRow key={rev.id} className={rev.id === params.id ? "bg-muted/50" : ""}>
+                                        <TableCell>
+                                            <input
+                                                type="checkbox"
+                                                className="h-4 w-4 rounded border-gray-300"
+                                                checked={selectedVersions.includes(rev.id)}
+                                                onChange={() => toggleVersionSelection(rev.id)}
+                                            />
+                                        </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
                                                 <span className="font-bold">Rev {rev.revision}</span>

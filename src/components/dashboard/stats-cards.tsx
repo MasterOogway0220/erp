@@ -104,7 +104,7 @@ export function StatsCards() {
       bgColor: "bg-orange-50",
     },
   ]
-  
+
   if (loading) {
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -120,22 +120,51 @@ export function StatsCards() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       {statsConfig.map((stat, index) => (
-        <Card key={stat.title} className="animate-fade-in" style={{ animationDelay: `${index * 50}ms` }}>
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between">
-              <div className={`rounded-lg p-2 ${stat.bgColor}`}>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
+        <Card
+          key={stat.title}
+          className="dashboard-card group overflow-hidden animate-fade-in"
+          style={{ animationDelay: `${index * 50}ms` }}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className={`rounded-xl p-2.5 transition-transform duration-300 group-hover:scale-110 ${stat.bgColor}`}>
+                <stat.icon className={`h-5 w-5 ${stat.color}`} />
               </div>
-              {stat.trend === "up" && <TrendingUp className="h-4 w-4 text-emerald-500" />}
-              {stat.trend === "down" && <TrendingDown className="h-4 w-4 text-rose-500" />}
+              <div className="flex items-center gap-1">
+                {stat.trend === "up" ? (
+                  <div className="flex items-center text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                    <TrendingUp className="h-3 w-3 mr-0.5" /> {stat.change}
+                  </div>
+                ) : stat.trend === "down" ? (
+                  <div className="flex items-center text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-full">
+                    <TrendingDown className="h-3 w-3 mr-0.5" /> {stat.change}
+                  </div>
+                ) : (
+                  <div className="text-[10px] font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+                    {stat.change}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="mt-3">
-              <p className="text-2xl font-bold tracking-tight">{stat.value}</p>
-              <p className="text-xs text-muted-foreground mt-1">{stat.title}</p>
+
+            <div className="mt-5 space-y-1">
+              <p className="text-3xl font-black tracking-tighter text-glow-primary">{stat.value}</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70">{stat.title}</p>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">{stat.change}</p>
+
+            {/* Subtle progress line for aesthetic flair */}
+            <div className="mt-4 h-1 w-full bg-muted/30 rounded-full overflow-hidden">
+              <div
+                className={`h-full opacity-60 rounded-full transition-all duration-1000 delay-300`}
+                style={{
+                  width: '65%',
+                  backgroundColor: `currentColor`,
+                  color: stat.trend === 'down' ? 'var(--color-destructive)' : 'oklch(0.60 0.18 250)'
+                }}
+              />
+            </div>
           </CardContent>
         </Card>
       ))}

@@ -19,6 +19,9 @@ const createProductSchema = z.object({
   schedule: z.string().optional().nullable(),
   grade: z.string().optional().nullable(),
   wall_thickness: z.number().optional().nullable(),
+  weight_per_unit: z.number().optional().nullable(),
+  standard: z.string().optional().nullable(),
+  manufacturer: z.string().optional().nullable(),
 })
 
 export async function GET(request: NextRequest) {

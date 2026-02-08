@@ -28,12 +28,12 @@ export default function InventoryDetailPage() {
   const params = useParams()
   const router = useRouter()
   const { inventory, grns, inspections, dispatches } = useStore()
-  
+
   const item = inventory.find(i => i.id === params.id)
   const linkedGRN = grns.find(g => g.grnNumber === item?.grnNumber)
   const linkedInspection = inspections.find(i => i.heatNumber === item?.heatNumber)
   const linkedDispatches = dispatches.filter(d => d.items.some(di => di.heatNumber === item?.heatNumber))
-  
+
   if (!item) {
     return (
       <PageLayout title="Inventory Not Found">
@@ -47,7 +47,7 @@ export default function InventoryDetailPage() {
       </PageLayout>
     )
   }
-  
+
   return (
     <PageLayout title={`Inventory - ${item.heatNumber}`}>
       <div className="space-y-6">
@@ -66,8 +66,15 @@ export default function InventoryDetailPage() {
               <p className="text-muted-foreground font-mono">Heat: {item.heatNumber}</p>
             </div>
           </div>
+          {item.inspectionStatus === 'under_inspection' && (
+            <Button asChild className="bg-primary text-primary-foreground">
+              <Link href={`/inventory/stock/${params.id}/inspect`}>
+                <Beaker className="mr-2 h-4 w-4" /> Record Detailed Inspection
+              </Link>
+            </Button>
+          )}
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card>
             <CardHeader className="pb-3">
@@ -79,7 +86,7 @@ export default function InventoryDetailPage() {
               <p className="font-semibold text-2xl">{item.quantity}</p>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2 text-green-600">
@@ -90,7 +97,7 @@ export default function InventoryDetailPage() {
               <p className="font-semibold text-2xl text-green-600">{item.availableQuantity}</p>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2 text-amber-600">
@@ -101,7 +108,7 @@ export default function InventoryDetailPage() {
               <p className="font-semibold text-2xl text-amber-600">{item.reservedQuantity}</p>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -113,7 +120,7 @@ export default function InventoryDetailPage() {
             </CardContent>
           </Card>
         </div>
-        
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Traceability Information</CardTitle>
@@ -146,7 +153,7 @@ export default function InventoryDetailPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         {linkedGRN && (
           <Card>
             <CardHeader>
@@ -167,7 +174,7 @@ export default function InventoryDetailPage() {
             </CardContent>
           </Card>
         )}
-        
+
         {linkedInspection && (
           <Card>
             <CardHeader>
@@ -227,7 +234,7 @@ export default function InventoryDetailPage() {
             </CardContent>
           </Card>
         )}
-        
+
         {linkedDispatches.length > 0 && (
           <Card>
             <CardHeader>
@@ -269,7 +276,7 @@ export default function InventoryDetailPage() {
             </CardContent>
           </Card>
         )}
-        
+
         <Card className="bg-muted/30">
           <CardHeader>
             <CardTitle className="text-sm text-muted-foreground">Audit Information</CardTitle>

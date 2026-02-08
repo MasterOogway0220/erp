@@ -6,50 +6,84 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ArrowLeft, Loader2, AlertCircle } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 
 export default function NewVendorPage() {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
-  
+
   const [name, setName] = useState("")
+  const [vendorCode, setVendorCode] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
+  const [contactPerson, setContactPerson] = useState("")
   const [address, setAddress] = useState("")
   const [city, setCity] = useState("")
   const [state, setState] = useState("")
   const [country, setCountry] = useState("India")
   const [gstNumber, setGstNumber] = useState("")
+  const [paymentTerms, setPaymentTerms] = useState("")
+  const [deliveryLeadTime, setDeliveryLeadTime] = useState("")
+  const [vendorCategory, setVendorCategory] = useState("Manufacturer")
+  const [openingBalance, setOpeningBalance] = useState("0")
   const [isApproved, setIsApproved] = useState(false)
+  const [pincode, setPincode] = useState("")
+
+  // Pincode Auto-fill Logic
+  useEffect(() => {
+    if (pincode.length === 6) {
+      fetch(`/api/utils/pincode/${pincode}`)
+        .then(res => res.json())
+        .then(res => {
+          if (res.data.city) {
+            setCity(res.data.city)
+            setState(res.data.state)
+          }
+        })
+    }
+  }, [pincode])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    
+
     if (!name.trim()) {
       setError("Company name is required")
       return
     }
 
     setSaving(true)
-    
+
     try {
       const response = await fetch('/api/vendors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
+          vendor_code: vendorCode.trim() || null,
           email: email.trim() || null,
           phone: phone.trim() || null,
+          contact_person: contactPerson.trim() || null,
           address: address.trim() || null,
           city: city.trim() || null,
           state: state.trim() || null,
           country: country.trim() || null,
           gst_number: gstNumber.trim() || null,
+          payment_terms: paymentTerms.trim() || null,
+          delivery_lead_time: parseInt(deliveryLeadTime) || null,
+          vendor_category: vendorCategory || null,
+          opening_balance: parseFloat(openingBalance) || 0,
           is_approved: isApproved,
           rating: 0,
         }),
@@ -97,38 +131,109 @@ export default function NewVendorPage() {
                 <CardDescription>Vendor company details</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Company Name *</Label>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Enter company name"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Vendor Code</Label>
+                    <Input
+                      value={vendorCode}
+                      onChange={(e) => setVendorCode(e.target.value)}
+                      placeholder="Unique Vendor Code"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="email@vendor.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone</Label>
+                    <Input
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+91-XX-XXXXXXXX"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Contact Person</Label>
+                    <Input
+                      value={contactPerson}
+                      onChange={(e) => setContactPerson(e.target.value)}
+                      placeholder="Name of primary contact"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>GST Number</Label>
+                    <Input
+                      value={gstNumber}
+                      onChange={(e) => setGstNumber(e.target.value)}
+                      placeholder="GSTIN"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="md:col-span-2 shadow-sm border-orange-100 bg-orange-50/20">
+              <CardHeader>
+                <CardTitle className="text-base text-orange-700 font-bold uppercase tracking-tight">ISO Business & Compliance</CardTitle>
+                <CardDescription>Procurement and evaluation criteria (ISO 8.4)</CardDescription>
+              </CardHeader>
+              <CardContent className="grid md:grid-cols-4 gap-6">
                 <div className="space-y-2">
-                  <Label>Company Name *</Label>
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Category</Label>
+                  <Select value={vendorCategory} onValueChange={setVendorCategory}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Manufacturer">Manufacturer</SelectItem>
+                      <SelectItem value="Trader">Trader / Dealer</SelectItem>
+                      <SelectItem value="Service Provider">Service Provider</SelectItem>
+                      <SelectItem value="Sub-contractor">Sub-contractor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Payment Terms</Label>
                   <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter company name"
-                    required
+                    value={paymentTerms}
+                    onChange={(e) => setPaymentTerms(e.target.value)}
+                    placeholder="e.g. 30 Days"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Email</Label>
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Lead Time (Days)</Label>
                   <Input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="email@vendor.com"
+                    type="number"
+                    value={deliveryLeadTime}
+                    onChange={(e) => setDeliveryLeadTime(e.target.value)}
+                    placeholder="0"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Phone</Label>
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Opening Balance (₹)</Label>
                   <Input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+91-XX-XXXXXXXX"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>GST Number</Label>
-                  <Input
-                    value={gstNumber}
-                    onChange={(e) => setGstNumber(e.target.value)}
-                    placeholder="GSTIN"
+                    type="number"
+                    value={openingBalance}
+                    onChange={(e) => setOpeningBalance(e.target.value)}
+                    placeholder="0.00"
                   />
                 </div>
               </CardContent>
@@ -163,6 +268,14 @@ export default function NewVendorPage() {
                       value={state}
                       onChange={(e) => setState(e.target.value)}
                       placeholder="State"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Pincode</Label>
+                    <Input
+                      value={pincode}
+                      onChange={(e) => setPincode(e.target.value)}
+                      placeholder="Pincode"
                     />
                   </div>
                 </div>

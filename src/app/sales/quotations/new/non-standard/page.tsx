@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog"
 import { ArrowLeft, Plus, Trash2, AlertCircle, Loader2, Save } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { TermsConditionsEditor } from "@/components/quotations/TermsConditionsEditor" // Import TermsConditionsEditor
 
 interface NonStandardLineItem {
     id: string
@@ -34,6 +35,12 @@ interface NonStandardLineItem {
     unitPrice: number
     amount: number
     unit: string
+}
+
+interface SelectedQuotationTerm {
+  term_id: string
+  custom_text: string
+  display_order: number;
 }
 
 function NonStandardQuotationForm() {
@@ -62,6 +69,7 @@ function NonStandardQuotationForm() {
     const [selectedTesting, setSelectedTesting] = useState<string[]>([])
     const [items, setItems] = useState<NonStandardLineItem[]>([])
     const [remarks, setRemarks] = useState("")
+    const [selectedQuotationTerms, setSelectedQuotationTerms] = useState<SelectedQuotationTerm[]>([]); // New state for selected terms
 
     // UI State
     const [loading, setLoading] = useState(false)
@@ -79,6 +87,7 @@ function NonStandardQuotationForm() {
                     fetch('/api/currencies'),
                     fetch('/api/ports'),
                     fetch('/api/testing-standards')
+                    // fetch('/api/terms') // No longer needed
                 ])
 
                 const [custData, uomData, currData, portData, testData] = await Promise.all([
@@ -87,6 +96,7 @@ function NonStandardQuotationForm() {
                     currRes.json(),
                     portRes.json(),
                     testRes.json()
+                    // termRes.json() // No longer needed
                 ])
 
                 setCustomers(custData.data || [])
@@ -101,6 +111,21 @@ function NonStandardQuotationForm() {
                     if (enqRes.ok && enqData.data) {
                         setCustomerId(enqData.data.customer_id)
                         setProjectName(enqData.data.project_name || "")
+
+                        // Map Items
+                        const mappedItems: NonStandardLineItem[] = (enqData.data.items || []).map((i: any) => ({
+                            id: Math.random().toString(36).substring(2, 9),
+                            productName: i.product?.name || "New Product",
+                            description: i.specifications || "",
+                            quantity: i.quantity || 1,
+                            unitPrice: 0,
+                            amount: 0,
+                            unit: "NOS"
+                        }))
+
+                        if (mappedItems.length > 0) {
+                            setItems(mappedItems)
+                        }
                     }
                 }
             } catch (err) {
@@ -179,6 +204,11 @@ function NonStandardQuotationForm() {
                     port_of_discharge_id: portOfDischargeId || null,
                     testing_standards: selectedTesting,
                     remarks: remarks,
+                    terms: selectedQuotationTerms.map(st => ({
+                      term_id: st.term_id,
+                      custom_text: st.custom_text,
+                      display_order: st.display_order
+                    })),
                     items: items.map(item => ({
                         product_name: item.productName,
                         description: item.description,
@@ -239,6 +269,17 @@ function NonStandardQuotationForm() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Buyer / Contact Person</Label>
+                            <Select value={buyerId} onValueChange={setBuyerId} disabled={!customerId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select Buyer" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {buyers.map(b => <SelectItem key={b.id} value={b.id}>{b.buyer_name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -367,6 +408,18 @@ function NonStandardQuotationForm() {
                             </div>
                         )}
                     </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle className="text-sm font-medium">Terms & Conditions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <TermsConditionsEditor
+                        initialSelectedTerms={selectedQuotationTerms}
+                        onTermsChange={setSelectedQuotationTerms}
+                    />
                 </CardContent>
             </Card>
 

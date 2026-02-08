@@ -16,6 +16,14 @@ import { Plus, Check, X, Send, ArrowRight, Loader2, AlertCircle } from "lucide-r
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-800",
@@ -79,27 +87,45 @@ export default function QuotationsPage() {
     }
   }
 
-  const handleUpdateStatus = async (id: string, action: string) => {
+  const [selectedQuotation, setSelectedQuotation] = useState<{ id: string, action: string } | null>(null)
+  const [remarks, setRemarks] = useState("")
+  const [processing, setProcessing] = useState(false)
+
+  const openActionDialog = (id: string, action: string) => {
+    // specific actions needing remarks
+    if (action === 'approve' || action === 'reject') {
+      setSelectedQuotation({ id, action })
+      setRemarks("")
+    } else {
+      handleUpdateStatus(id, action)
+    }
+  }
+
+  const handleUpdateStatus = async (id: string, action: string, actionRemarks?: string) => {
     try {
+      setProcessing(true)
       const response = await fetch(`/api/quotations/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action })
+        body: JSON.stringify({ action, remarks: actionRemarks })
       })
       if (response.ok) {
         fetchQuotations()
+        setSelectedQuotation(null)
       } else {
         const result = await response.json()
         alert(result.error || `Failed to ${action} quotation`)
       }
     } catch (err) {
       alert(`Error updating quotation status`)
+    } finally {
+      setProcessing(false)
     }
   }
 
   const filteredQuotations = showHistory
     ? quotations
-    : quotations.filter(q => q.isLatest !== false) // Handle null/undefined as true just in case
+    : quotations.filter(q => q.isLatest !== false)
 
   if (loading) {
     return (
@@ -179,7 +205,7 @@ export default function QuotationsPage() {
                         {quotation.currency === "INR" ? "₹" : "$"}
                         {quotation.total?.toLocaleString()}
                       </TableCell>
-                      <TableCell>{quotation.validUntil}</TableCell>
+                      <TableCell>{quotation.createdAt}</TableCell>
                       <TableCell>
                         <Badge className={statusColors[quotation.status] || "bg-gray-100"}>
                           {quotation.status?.replace(/_/g, " ")}
@@ -187,10 +213,6 @@ export default function QuotationsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link href={`/sales/quotations/${quotation.id}`}>View</Link>
-                          </Button>
-
                           {/* Revise Button */}
                           {quotation.isLatest && (
                             <Button variant="ghost" size="sm" asChild title="Create Revision">
@@ -215,7 +237,7 @@ export default function QuotationsPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="text-green-600"
-                                onClick={() => handleUpdateStatus(quotation.id, 'approve')}
+                                onClick={() => openActionDialog(quotation.id, 'approve')}
                               >
                                 <Check className="h-4 w-4" />
                               </Button>
@@ -223,7 +245,7 @@ export default function QuotationsPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="text-red-600"
-                                onClick={() => handleUpdateStatus(quotation.id, 'reject')}
+                                onClick={() => openActionDialog(quotation.id, 'reject')}
                               >
                                 <X className="h-4 w-4" />
                               </Button>
@@ -255,6 +277,39 @@ export default function QuotationsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={!!selectedQuotation} onOpenChange={(open) => !open && setSelectedQuotation(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {selectedQuotation?.action === 'approve' ? 'Approve Quotation' : 'Reject Quotation'}
+            </DialogTitle>
+            <DialogDescription>
+              Please provide remarks for this action (Mandatory for ISO 8.2.3).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <textarea
+              className="w-full border rounded p-2"
+              rows={4}
+              placeholder="Enter remarks..."
+              value={remarks}
+              onChange={e => setRemarks(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedQuotation(null)}>Cancel</Button>
+            <Button
+              onClick={() => selectedQuotation && handleUpdateStatus(selectedQuotation.id, selectedQuotation.action, remarks)}
+              disabled={processing || !remarks.trim()}
+              variant={selectedQuotation?.action === 'reject' ? "destructive" : "default"}
+            >
+              {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {selectedQuotation?.action === 'approve' ? 'Approve' : 'Reject'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   )
 } // End Component

@@ -48,8 +48,8 @@ export const createQuotationSchema = z.object({
   items: z.array(quotationItemSchema).min(1, "At least one item is required"),
   currency: z.string().default('INR'),
   exchange_rate: z.number().optional().default(1),
-  valid_until: z.string(),
-  validity_days: z.number().optional(),
+  valid_until: z.string().optional(),
+  validity_days: z.number().optional().default(15),
   remarks: z.string().optional(),
   terms: z.array(quotationTermSchema).optional(),
   parent_quotation_id: z.string().uuid().optional(),
@@ -63,6 +63,40 @@ export const createQuotationSchema = z.object({
   vessel_name: z.string().optional().nullable(),
   testing_standards: z.array(z.string().uuid()).optional().default([]),
 })
+  .refine((data) => {
+    // Calculate total from items to ensure it's greater than 0
+    const itemsTotal = data.items.reduce((sum, item) => {
+      return sum + (item.quantity * item.unit_price * (1 - (item.discount || 0) / 100))
+    }, 0)
+    const total = itemsTotal + (data.packing_charges || 0) + (data.freight_charges || 0) + (data.other_charges || 0)
+    return total > 0
+  }, {
+    message: "Total amount must be greater than 0. Please check item prices and quantities.",
+    path: ["items"]
+  })
+  .refine((data) => {
+    // Exchange rate must be > 0 for non-INR currencies
+    if (data.currency && data.currency !== 'INR') {
+      return (data.exchange_rate || 0) > 0
+    }
+    return true
+  }, {
+    message: "Exchange rate must be greater than 0 for non-INR currencies",
+    path: ["exchange_rate"]
+  })
+  .refine((data) => {
+    // Valid until date must be today or in the future
+    if (data.valid_until) {
+      const validUntil = new Date(data.valid_until)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      return validUntil >= today
+    }
+    return true
+  }, {
+    message: "Valid until date must be today or in the future",
+    path: ["valid_until"]
+  })
 
 export const approveQuotationSchema = z.object({
   approved: z.boolean(),
@@ -81,6 +115,7 @@ export const purchaseOrderItemSchema = z.object({
   quantity: z.number().positive(),
   unit_price: z.number().min(0),
   heat_number: z.string().optional(),
+  so_item_id: z.string().uuid().optional(),
 })
 
 export const createPurchaseOrderSchema = z.object({
@@ -116,13 +151,22 @@ export const inspectionSchema = z.object({
     specification: z.string(),
     actual_value: z.string(),
     result: z.enum(['pass', 'fail']),
-  })),
+  })).optional(),
+  test_results: z.array(z.object({
+    test_standard_id: z.string().uuid(),
+    parameter_name: z.string(),
+    specification: z.string(),
+    actual_value: z.string(),
+    result: z.enum(['pass', 'fail']),
+    remarks: z.string().optional(),
+  })).optional(),
   remarks: z.string().optional(),
 })
 
 export const dispatchItemSchema = z.object({
   inventory_id: z.string().uuid(),
   product_id: z.string().uuid(),
+  sales_order_item_id: z.string().uuid().optional(),
   quantity: z.number().positive(),
   heat_number: z.string(),
 })
@@ -141,12 +185,20 @@ export const createInvoiceSchema = z.object({
   remarks: z.string().optional(),
 })
 
-export const createPaymentSchema = z.object({
+export const paymentAllocationSchema = z.object({
   invoice_id: z.string().uuid(),
   amount: z.number().positive(),
-  payment_mode: z.enum(['cash', 'cheque', 'neft', 'rtgs', 'upi']),
+})
+
+export const createPaymentReceiptSchema = z.object({
+  customer_id: z.string().uuid(),
+  amount: z.number().positive(),
+  payment_mode: z.enum(['cash', 'cheque', 'neft', 'rtgs', 'upi', 'wire']),
   reference_number: z.string().optional(),
-  payment_date: z.string(),
+  receipt_date: z.string(),
+  bank_details: z.string().optional(),
+  remarks: z.string().optional(),
+  allocations: z.array(paymentAllocationSchema).min(1, "At least one allocation is required").optional(),
 })
 
 export const statusTransitions: Record<string, Record<string, string[]>> = {
@@ -252,11 +304,11 @@ export const createEmployeeSchema = z.object({
 // Buyer Master Schema
 export const createBuyerSchema = z.object({
   customer_id: z.string().uuid(),
-  name: z.string().min(1, "Buyer name is required"),
-  designation: z.string().optional(),
-  email: z.string().email().optional().or(z.literal('')),
-  mobile: z.string().optional(),
-  telephone: z.string().optional(),
-  is_primary_contact: z.boolean().default(false),
+  buyer_name: z.string().min(1, "Buyer name is required").max(100),
+  designation: z.string().max(50).optional(),
+  email: z.string().email("Invalid email address").optional(),
+  mobile: z.string().max(20).optional(),
+  opening_balance: z.number().optional(), // Marking optional as it might not be provided on creation
+  is_active: z.boolean().default(true),
 })
 

@@ -15,6 +15,8 @@ import {
   Settings,
   ChevronDown,
   Shield,
+  ShieldAlert,
+  Sliders,
   LogOut,
 } from "lucide-react"
 
@@ -72,6 +74,7 @@ const navigationItems = [
     icon: Warehouse,
     permission: "inventory",
     items: [
+      { title: "Dashboard", href: "/inventory/dashboard" },
       { title: "Stock Overview", href: "/inventory/stock" },
       { title: "GRN", href: "/inventory/grn" },
       { title: "Dispatch", href: "/inventory/dispatch" },
@@ -119,6 +122,15 @@ const navigationItems = [
       { title: "Products", href: "/masters/products" },
     ],
   },
+  {
+    title: "Admin & Settings",
+    icon: Sliders,
+    permission: "*", // Admin only usually maps to * or a specific admin permission
+    items: [
+      { title: "System Settings", href: "/settings" },
+      { title: "Audit Logs (ISO)", href: "/admin/audit-logs" },
+    ],
+  },
 ]
 
 const roleLabels: Record<UserRole, string> = {
@@ -151,14 +163,15 @@ export function AppSidebar() {
   const filteredNavItems = navigationItems.filter(item => hasPermission(item.permission))
 
   return (
-    <Sidebar>
-      <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-            <Shield className="h-5 w-5 text-primary-foreground" />
+    <Sidebar className="border-r-0 bg-sidebar/95 backdrop-blur-md">
+      <SidebarHeader className="px-6 py-8">
+        <Link href="/" className="flex items-center gap-3 group">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/20 rotate-3 group-hover:rotate-0 transition-transform duration-300">
+            <Shield className="h-6 w-6 text-primary-foreground" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold text-sidebar-foreground">ERP Software</span>
+            <span className="text-lg font-black tracking-tighter text-sidebar-foreground">STEEL CORE</span>
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-sidebar-foreground/40 leading-none mt-1">Management Suite</span>
           </div>
         </Link>
       </SidebarHeader>

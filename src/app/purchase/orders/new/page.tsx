@@ -40,51 +40,64 @@ function NewPurchaseOrderForm() {
   const searchParams = useSearchParams()
   const prId = searchParams.get("prId")
   const soId = searchParams.get("soId")
-  
-  const { vendors, products, purchaseRequests, salesOrders, addPurchaseOrder, generateNumber } = useStore()
-  
-  const approvedVendors = vendors.filter(v => v.isApproved)
-  const purchaseRequest = prId ? purchaseRequests.find(pr => pr.id === prId) : null
-  const salesOrder = soId ? salesOrders.find(so => so.id === soId) : null
-  
+
+  const [vendors, setVendors] = useState<any[]>([])
+  const [products, setProducts] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const [vendorId, setVendorId] = useState("")
   const [deliveryDate, setDeliveryDate] = useState("")
   const [items, setItems] = useState<POLineItem[]>([])
   const [error, setError] = useState("")
-  
+
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        const [vRes, pRes] = await Promise.all([
+          fetch('/api/vendors'),
+          fetch('/api/products')
+        ])
+        const vData = await vRes.json()
+        const pData = await pRes.json()
+
+        setVendors(vData.data || [])
+        setProducts(pData.data || [])
+
+        if (soId) {
+          const soRes = await fetch(`/api/sales-orders/${soId}`)
+          const soData = await soRes.json()
+          if (soRes.ok && soData.data) {
+            const initialItems = soData.data.items.map((item: any) => ({
+              id: Math.random().toString(36).substring(2, 15),
+              productId: item.product_id,
+              productName: item.product?.name || "Product",
+              quantity: item.quantity - (item.delivered_quantity || 0),
+              unit_price: item.unit_price * 0.8, // Default 20% margin for purchase
+              so_item_id: item.id,
+              heatNumber: "",
+            })).filter((item: any) => item.quantity > 0)
+            setItems(initialItems)
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch data")
+        setError("Failed to load required data")
+      } finally {
+        setLoading(false)
+      }
+    }
+
     const date = new Date()
     date.setDate(date.getDate() + 14)
     setDeliveryDate(date.toISOString().split("T")[0])
-    
-    if (purchaseRequest) {
-      const initialItems = purchaseRequest.items.map(item => {
-        const product = products.find(p => p.id === item.productId)
-        return {
-          id: item.id,
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          unitPrice: product?.basePrice || 0,
-          heatNumber: "",
-        }
-      })
-      setItems(initialItems)
-    } else if (salesOrder) {
-      const initialItems = salesOrder.items.map(item => ({
-        id: Math.random().toString(36).substring(2, 15),
-        productId: item.productId,
-        productName: item.productName,
-        quantity: item.quantity - item.deliveredQuantity,
-        unitPrice: item.unitPrice * 0.8,
-        heatNumber: "",
-      })).filter(item => item.quantity > 0)
-      setItems(initialItems)
-    }
-  }, [purchaseRequest, salesOrder, products])
-  
+
+    fetchData()
+  }, [soId])
+
+  const approvedVendors = vendors.filter(v => v.is_approved || v.status === 'approved')
   const selectedVendor = vendors.find(v => v.id === vendorId)
-  
+
   const addLineItem = () => {
     setItems([...items, {
       id: Math.random().toString(36).substring(2, 15),
@@ -95,98 +108,83 @@ function NewPurchaseOrderForm() {
       heatNumber: "",
     }])
   }
-  
+
   const updateLineItem = (id: string, field: string, value: string | number) => {
     setItems(items.map(item => {
       if (item.id !== id) return item
-      
+
       const updated = { ...item, [field]: value }
-      
+
       if (field === "productId") {
         const product = products.find(p => p.id === value)
         if (product) {
           updated.productName = product.name
-          updated.unitPrice = product.basePrice
+          updated.unitPrice = product.basePrice || 0
         }
       }
-      
+
       return updated
     }))
   }
-  
+
   const removeLineItem = (id: string) => {
     setItems(items.filter(item => item.id !== id))
   }
-  
-  const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0)
+
+  const subtotal = items.reduce((sum, item) => sum + (item.quantity * (item.unitPrice || (item as any).unit_price || 0)), 0)
   const tax = subtotal * 0.18
   const total = subtotal + tax
-  
-  const handleSubmit = () => {
+
+  const handleSubmit = async () => {
     setError("")
-    
+
     if (!vendorId) {
       setError("Please select a vendor")
       return
     }
-    
-    if (!selectedVendor?.isApproved) {
-      setError("Cannot create PO. Vendor must be approved first.")
-      return
-    }
-    
+
     if (items.length === 0) {
       setError("Please add at least one line item")
       return
     }
-    
+
     if (items.some(item => !item.productId || item.quantity <= 0)) {
       setError("Please fill all line items correctly")
       return
     }
-    
-    if (!deliveryDate) {
-      setError("Please set delivery date")
-      return
+
+    try {
+      setSubmitting(true)
+      const response = await fetch('/api/purchase-orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vendor_id: vendorId,
+          sales_order_id: soId || null,
+          items: items.map(item => ({
+            product_id: item.productId,
+            quantity: item.quantity,
+            unit_price: item.unitPrice || (item as any).unit_price || 0,
+            heat_number: item.heatNumber || null,
+            so_item_id: (item as any).so_item_id || null
+          })),
+          delivery_date: deliveryDate,
+        })
+      })
+
+      const result = await response.json()
+      if (response.ok) {
+        router.push(`/purchase/orders/${result.data.id}`)
+      } else {
+        setError(result.error || "Failed to create purchase order")
+      }
+    } catch (err) {
+      setError("An error occurred during submission")
+    } finally {
+      setSubmitting(false)
     }
-    
-    const purchaseOrder = {
-      id: Math.random().toString(36).substring(2, 15),
-      poNumber: generateNumber("PO"),
-      prId: prId || undefined,
-      vendorId,
-      vendorName: selectedVendor?.name || "",
-      items: items.map(item => ({
-        id: item.id,
-        productId: item.productId,
-        productName: item.productName,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        receivedQuantity: 0,
-        heatNumber: item.heatNumber,
-      })),
-      subtotal,
-      tax,
-      total,
-      deliveryDate,
-      status: "draft" as const,
-      revision: 1,
-      createdAt: new Date().toISOString().split("T")[0],
-    }
-    
-    addPurchaseOrder(purchaseOrder)
-    
-    if (prId) {
-      useStore.setState(state => ({
-        purchaseRequests: state.purchaseRequests.map(pr => 
-          pr.id === prId ? { ...pr, status: "converted" as const } : pr
-        )
-      }))
-    }
-    
-    router.push(`/purchase/orders/${purchaseOrder.id}`)
   }
-  
+
   return (
     <PageLayout title="New Purchase Order">
       <div className="space-y-6">
@@ -197,22 +195,24 @@ function NewPurchaseOrderForm() {
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Create Purchase Order</h2>
             <p className="text-muted-foreground">
-              {purchaseRequest 
-                ? `From PR: ${purchaseRequest.prNumber}` 
-                : salesOrder 
-                ? `For SO: ${salesOrder.soNumber}`
-                : "Create a new purchase order"}
+              {loading
+                ? "Loading details..."
+                : prId
+                  ? `From PR: ${prId}`
+                  : soId
+                    ? `For SO: ${soId}`
+                    : "Create a new purchase order"}
             </p>
           </div>
         </div>
-        
+
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
@@ -248,7 +248,7 @@ function NewPurchaseOrderForm() {
               )}
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Order Details</CardTitle>
@@ -265,7 +265,7 @@ function NewPurchaseOrderForm() {
             </CardContent>
           </Card>
         </div>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -358,19 +358,19 @@ function NewPurchaseOrderForm() {
                 )}
               </TableBody>
             </Table>
-            
+
             {items.length > 0 && (
               <div className="flex justify-end mt-4">
                 <div className="w-72 space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>Subtotal:</span>
+                    <span className="font-medium">Subtotal:</span>
                     <span>₹{subtotal.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span>Tax (18%):</span>
+                    <span className="font-medium">Tax (18%):</span>
                     <span>₹{tax.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between font-bold border-t pt-2">
+                  <div className="flex justify-between font-bold border-t pt-2 text-primary">
                     <span>Total:</span>
                     <span>₹{total.toLocaleString()}</span>
                   </div>
@@ -379,12 +379,13 @@ function NewPurchaseOrderForm() {
             )}
           </CardContent>
         </Card>
-        
+
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={() => router.back()}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>
+          <Button onClick={handleSubmit} disabled={submitting || loading}>
+            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Create Purchase Order
           </Button>
         </div>

@@ -111,23 +111,26 @@ export function PageLayout({ children, title }: PageLayoutProps) {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-background px-4">
-          <div className="flex items-center gap-2">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="h-6" />
-            <h1 className="text-sm font-medium">{title}</h1>
+        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background/80 backdrop-blur-xl px-6 transition-all">
+          <div className="flex items-center gap-4">
+            <SidebarTrigger className="-ml-1 hover:bg-muted transition-colors" />
+            <Separator orientation="vertical" className="h-6 opacity-30" />
+            <h1 className="text-base font-black tracking-tight uppercase text-primary/80">{title}</h1>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="relative hidden md:block" ref={searchRef}>
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <div className="flex items-center gap-4">
+            <div className="relative hidden md:block group" ref={searchRef}>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
               <Input
                 type="search"
-                placeholder="Global search..."
-                className="w-64 pl-8 h-9"
+                placeholder="Search anything..."
+                className="w-80 pl-9 pr-12 h-10 bg-muted/30 border-none shadow-none focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-xl"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => searchQuery.length >= 2 && setShowSearch(true)}
               />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden lg:flex items-center gap-1 px-1.5 py-0.5 rounded border bg-background/50 text-[10px] font-bold text-muted-foreground pointer-events-none">
+                <span className="text-[12px]">⌘</span> K
+              </div>
 
               {showSearch && (
                 <div className="absolute top-full left-0 w-full mt-1 bg-popover border rounded-md shadow-lg z-50 overflow-hidden">

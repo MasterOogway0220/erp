@@ -1,0 +1,16 @@
+INSERT INTO terms_conditions_library (term_number, term_text, category) VALUES
+  (1, $$Price: Ex-work, Navi Mumbai, India/Jebel Ali, UAE$$, 'Price'),
+  (2, $$Delivery: As above, ex-works, after receipt of PO$$, 'Delivery'),
+  (3, $$Payment: 100% within 30 Days from date of dispatch$$, 'Payment'),
+  (4, $$Offer validity: 6 Days, subject to stock remain unsold$$, 'Validity'),
+  (5, $$Taxes: All applicable taxes extra at actuals.$$, 'Taxes'),
+  (6, $$Freight: Freight charges extra, unless specified otherwise.$$, 'Freight'),
+  (7, $$Insurance: Transit insurance at buyer's cost.$$, 'Insurance'),
+  (8, $$Inspection: Buyer's inspection at seller's works.$$, 'Inspection'),
+  (9, $$Packing: Standard sea-worthy/export packing included.$$, 'Packing'),
+  (10, $$Documentation: Full set of export documents will be provided.$$, 'Documentation'),
+  (11, $$Force Majeure: Not responsible for delays due to Force Majeure.$$, 'General'),
+  (12, $$Jurisdiction: Subject to Mumbai jurisdiction.$$, 'Legal'),
+  (13, $$Warranty: As per manufacturer's standard warranty.$$, 'Warranty'),
+  (14, $$Returns: Goods once dispatched cannot be returned or exchanged.$$, 'Returns'),
+  (15, $$Acceptance: Quotation implies acceptance of all terms.$$, 'General');

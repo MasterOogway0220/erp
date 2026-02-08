@@ -1,316 +1,207 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from 'react'
 import { PageLayout } from "@/components/page-layout"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Package, CheckCircle, Clock, XCircle, Loader2 } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import {
+    Package,
+    AlertTriangle,
+    CheckCircle2,
+    XCircle,
+    Clock,
+    TrendingUp,
+    FileText,
+    Warehouse
+} from "lucide-react"
+import Link from 'next/link'
 
-export default function InventoryDashboardPage() {
-    const [inventory, setInventory] = useState<any[]>([])
+interface InventorySummary {
+    totalQuantity: number
+    totalReserved: number
+    totalAvailable: number
+    qualityStatus: {
+        under_inspection: number
+        accepted: number
+        rejected: number
+    }
+    lowStockItems: number
+}
+
+export default function InventoryDashboard() {
+    const [summary, setSummary] = useState<InventorySummary | null>(null)
     const [loading, setLoading] = useState(true)
-    const [filters, setFilters] = useState({
-        form: "",
-        type: "",
-        heatNumber: "",
-        qcStatus: "",
-        location: "",
-    })
-
-    // Summary stats
-    const [stats, setStats] = useState({
-        totalValue: 0,
-        underQC: 0,
-        accepted: 0,
-        rejected: 0,
-    })
 
     useEffect(() => {
-        fetchInventory()
-    }, [filters])
-
-    const fetchInventory = async () => {
-        setLoading(true)
-        try {
-            const params = new URLSearchParams()
-            if (filters.form) params.append("form", filters.form)
-            if (filters.type) params.append("type", filters.type)
-            if (filters.heatNumber) params.append("heat_number", filters.heatNumber)
-            if (filters.qcStatus) params.append("qc_status", filters.qcStatus)
-            if (filters.location) params.append("location", filters.location)
-
-            const res = await fetch(`/api/inventory?${params.toString()}`)
-            const data = await res.json()
-            if (data.success) {
-                setInventory(data.data)
-                calculateStats(data.data)
+        async function fetchSummary() {
+            try {
+                const response = await fetch('/api/inventory/summary')
+                const data = await response.json()
+                if (data.success) {
+                    setSummary(data.data)
+                }
+            } catch (error) {
+                console.error('Failed to fetch summary:', error)
+            } finally {
+                setLoading(false)
             }
-        } catch (error) {
-            console.error("Failed to fetch inventory")
-        } finally {
-            setLoading(false)
         }
-    }
+        fetchSummary()
+    }, [])
 
-    const calculateStats = (items: any[]) => {
-        const totalValue = items.reduce((sum, item) => sum + (item.value || 0), 0)
-        const underQC = items.filter((i) => i.qc_status === "UNDER_INSPECTION").length
-        const accepted = items.filter((i) => i.qc_status === "ACCEPTED").length
-        const rejected = items.filter((i) => i.qc_status === "REJECTED").length
+    if (loading) return <PageLayout title="Inventory Dashboard">Loading...</PageLayout>
 
-        setStats({ totalValue, underQC, accepted, rejected })
-    }
-
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case "ACCEPTED":
-                return "bg-green-50 border-green-200"
-            case "UNDER_INSPECTION":
-                return "bg-yellow-50 border-yellow-200"
-            case "REJECTED":
-                return "bg-red-50 border-red-200"
-            default:
-                return "bg-gray-50 border-gray-200"
-        }
-    }
-
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case "ACCEPTED":
-                return (
-                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Accepted
-                    </Badge>
-                )
-            case "UNDER_INSPECTION":
-                return (
-                    <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
-                        <Clock className="h-3 w-3 mr-1" />
-                        Under QC
-                    </Badge>
-                )
-            case "REJECTED":
-                return (
-                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
-                        <XCircle className="h-3 w-3 mr-1" />
-                        Rejected
-                    </Badge>
-                )
-            default:
-                return <Badge variant="outline">{status}</Badge>
-        }
-    }
+    const acceptedPercentage = summary ? (summary.qualityStatus.accepted / summary.totalQuantity) * 100 : 0
+    const reservedPercentage = summary ? (summary.totalReserved / summary.totalQuantity) * 100 : 0
 
     return (
-        <PageLayout title="Inventory Dashboard">
-            <div className="mb-4">
-                <p className="text-sm text-gray-600">Real-time inventory visibility with QC status tracking (Point 11)</p>
+        <PageLayout
+            title="Inventory Dashboard"
+        >
+            {/* 🔴 CRITICAL: Remote visibility for Uttam Sir (REQ-INV-001) */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card className="bg-primary/5 border-primary/20">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Quantity</CardTitle>
+                        <Package className="h-4 w-4 text-primary" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{summary?.totalQuantity.toLocaleString()}</div>
+                        <p className="text-xs text-muted-foreground">Mtrs/Pieces in stock</p>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-green-500/5 border-green-500/20">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Available for Sale</CardTitle>
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-green-600">{summary?.totalAvailable.toLocaleString()}</div>
+                        <p className="text-xs text-muted-foreground">Ready for dispatch</p>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-orange-500/5 border-orange-500/20">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Reserved</CardTitle>
+                        <Clock className="h-4 w-4 text-orange-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-orange-600">{summary?.totalReserved.toLocaleString()}</div>
+                        <p className="text-xs text-muted-foreground">Allocated to Sales Orders</p>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-red-500/5 border-red-500/20">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Critical Alerts</CardTitle>
+                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-red-600">{summary?.lowStockItems}</div>
+                        <p className="text-xs text-muted-foreground">Items below minimum stock</p>
+                    </CardContent>
+                </Card>
             </div>
 
-            {/* Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-4 mb-6">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Inventory Value</CardTitle>
-                        <Package className="h-4 w-4 text-muted-foreground" />
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 mt-6">
+                {/* Quality Breakdown */}
+                <Card className="col-span-4">
+                    <CardHeader>
+                        <CardTitle>Quality Status Breakdown</CardTitle>
+                        <CardDescription>Tracing stock through inspection phases</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">₹{stats.totalValue.toLocaleString()}</div>
-                        <p className="text-xs text-muted-foreground">{inventory.length} items</p>
+                    <CardContent className="space-y-6">
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">Accepted</Badge>
+                                    <span>{summary?.qualityStatus.accepted.toLocaleString()} units</span>
+                                </div>
+                                <span className="font-medium">{acceptedPercentage.toFixed(1)}%</span>
+                            </div>
+                            <Progress value={acceptedPercentage} className="h-2 bg-green-100" />
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">Under Inspection</Badge>
+                                    <span>{summary?.qualityStatus.under_inspection.toLocaleString()} units</span>
+                                </div>
+                                <span className="font-medium">{((summary?.qualityStatus.under_inspection || 0) / (summary?.totalQuantity || 1) * 100).toFixed(1)}%</span>
+                            </div>
+                            <Progress value={(summary?.qualityStatus.under_inspection || 0) / (summary?.totalQuantity || 1) * 100} className="h-2 bg-orange-100" />
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-200">Rejected</Badge>
+                                    <span>{summary?.qualityStatus.rejected.toLocaleString()} units</span>
+                                </div>
+                                <span className="font-medium">{((summary?.qualityStatus.rejected || 0) / (summary?.totalQuantity || 1) * 100).toFixed(1)}%</span>
+                            </div>
+                            <Progress value={(summary?.qualityStatus.rejected || 0) / (summary?.totalQuantity || 1) * 100} className="h-2 bg-red-100" />
+                        </div>
                     </CardContent>
                 </Card>
 
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Under QC Inspection</CardTitle>
-                        <Clock className="h-4 w-4 text-yellow-600" />
+                {/* Quick Actions & Links */}
+                <Card className="col-span-3">
+                    <CardHeader>
+                        <CardTitle>Quick Insights</CardTitle>
+                        <CardDescription>Focus areas for inventory control</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-yellow-600">{stats.underQC}</div>
-                        <p className="text-xs text-muted-foreground">Pending inspection</p>
-                    </CardContent>
-                </Card>
+                    <CardContent className="grid gap-4">
+                        <Link href="/inventory/stock?slow_moving=true">
+                            <div className="flex items-center gap-4 rounded-lg border p-4 hover:bg-muted/50 transition-colors cursor-pointer">
+                                <Clock className="h-5 w-5 text-muted-foreground" />
+                                <div className="flex-1 space-y-1">
+                                    <p className="text-sm font-medium leading-none">Slow Moving Stock</p>
+                                    <p className="text-xs text-muted-foreground">Items in stock &gt; 90 days</p>
+                                </div>
+                                <Badge variant="secondary">View</Badge>
+                            </div>
+                        </Link>
 
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Accepted & Ready</CardTitle>
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-green-600">{stats.accepted}</div>
-                        <p className="text-xs text-muted-foreground">Ready to dispatch</p>
-                    </CardContent>
-                </Card>
+                        <Link href="/inventory/stock?min_stock=true">
+                            <div className="flex items-center gap-4 rounded-lg border p-4 hover:bg-muted/50 transition-colors cursor-pointer">
+                                <AlertTriangle className="h-5 w-5 text-red-500" />
+                                <div className="flex-1 space-y-1">
+                                    <p className="text-sm font-medium leading-none text-red-600">Low Stock Alerts</p>
+                                    <p className="text-xs text-muted-foreground">{summary?.lowStockItems} items require replenishment</p>
+                                </div>
+                                <Badge variant="destructive">Critical</Badge>
+                            </div>
+                        </Link>
 
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Rejected Items</CardTitle>
-                        <XCircle className="h-4 w-4 text-red-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
-                        <p className="text-xs text-muted-foreground">Requires action</p>
+                        <Link href="/inventory/stock">
+                            <div className="flex items-center gap-4 rounded-lg border p-4 hover:bg-muted/50 transition-colors cursor-pointer">
+                                <Warehouse className="h-5 w-5 text-muted-foreground" />
+                                <div className="flex-1 space-y-1">
+                                    <p className="text-sm font-medium leading-none">Warehouse Overview</p>
+                                    <p className="text-xs text-muted-foreground">Rack and location-wise breakdown</p>
+                                </div>
+                                <Badge variant="secondary">Check</Badge>
+                            </div>
+                        </Link>
+
+                        <Link href="/api/inventory/export" target="_blank">
+                            <div className="flex items-center gap-4 rounded-lg border p-4 hover:bg-muted/50 transition-colors cursor-pointer">
+                                <FileText className="h-5 w-5 text-muted-foreground" />
+                                <div className="flex-1 space-y-1">
+                                    <p className="text-sm font-medium leading-none">Inventory Report</p>
+                                    <p className="text-xs text-muted-foreground">Export full stock list to Excel</p>
+                                </div>
+                                <Badge variant="outline">Excel</Badge>
+                            </div>
+                        </Link>
                     </CardContent>
                 </Card>
             </div>
-
-            {/* Filters */}
-            <Card className="mb-6">
-                <CardHeader>
-                    <CardTitle>Filters</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid gap-4 md:grid-cols-5">
-                        <div>
-                            <Label>Form</Label>
-                            <Select value={filters.form} onValueChange={(v) => setFilters({ ...filters, form: v })}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="All Forms" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="">All Forms</SelectItem>
-                                    <SelectItem value="CS">CS (Carbon Steel)</SelectItem>
-                                    <SelectItem value="SS">SS (Stainless Steel)</SelectItem>
-                                    <SelectItem value="AS">AS (Alloy Steel)</SelectItem>
-                                    <SelectItem value="DS">DS (Duplex Steel)</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div>
-                            <Label>Type</Label>
-                            <Select value={filters.type} onValueChange={(v) => setFilters({ ...filters, type: v })}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="All Types" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="">All Types</SelectItem>
-                                    <SelectItem value="SMLS">SMLS (Seamless)</SelectItem>
-                                    <SelectItem value="WELDED">Welded</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div>
-                            <Label>Heat Number</Label>
-                            <Input
-                                placeholder="Search heat number..."
-                                value={filters.heatNumber}
-                                onChange={(e) => setFilters({ ...filters, heatNumber: e.target.value })}
-                            />
-                        </div>
-
-                        <div>
-                            <Label>QC Status</Label>
-                            <Select value={filters.qcStatus} onValueChange={(v) => setFilters({ ...filters, qcStatus: v })}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="All Statuses" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="">All Statuses</SelectItem>
-                                    <SelectItem value="ACCEPTED">Accepted</SelectItem>
-                                    <SelectItem value="UNDER_INSPECTION">Under Inspection</SelectItem>
-                                    <SelectItem value="REJECTED">Rejected</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div>
-                            <Label>Location</Label>
-                            <Input
-                                placeholder="Rack/Location..."
-                                value={filters.location}
-                                onChange={(e) => setFilters({ ...filters, location: e.target.value })}
-                            />
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Inventory Table */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Inventory Items</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <div className="flex items-center justify-center h-64">
-                            <Loader2 className="h-8 w-8 animate-spin" />
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Form</TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead>Specification</TableHead>
-                                        <TableHead>Dimension</TableHead>
-                                        <TableHead>Size</TableHead>
-                                        <TableHead>Ends</TableHead>
-                                        <TableHead>Length</TableHead>
-                                        <TableHead>Heat No.</TableHead>
-                                        <TableHead>Make</TableHead>
-                                        <TableHead>Qty (Mtr)</TableHead>
-                                        <TableHead>Pieces</TableHead>
-                                        <TableHead>MTC No.</TableHead>
-                                        <TableHead>Location</TableHead>
-                                        <TableHead>QC Status</TableHead>
-                                        <TableHead>Notes</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {inventory.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={15} className="text-center text-gray-500">
-                                                No inventory items found
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        inventory.map((item) => (
-                                            <TableRow key={item.id} className={`border-l-4 ${getStatusColor(item.qc_status)}`}>
-                                                <TableCell className="font-medium">{item.form}</TableCell>
-                                                <TableCell>{item.type}</TableCell>
-                                                <TableCell className="text-xs">{item.specification}</TableCell>
-                                                <TableCell>{item.dimension}</TableCell>
-                                                <TableCell>{item.size}</TableCell>
-                                                <TableCell>{item.ends}</TableCell>
-                                                <TableCell>{item.length}</TableCell>
-                                                <TableCell className="font-mono text-xs font-bold">{item.heat_number}</TableCell>
-                                                <TableCell>{item.make}</TableCell>
-                                                <TableCell className="text-right">{item.quantity_mtr}</TableCell>
-                                                <TableCell className="text-right">{item.pieces}</TableCell>
-                                                <TableCell className="text-xs">{item.mtc_number}</TableCell>
-                                                <TableCell className="font-medium">{item.location}</TableCell>
-                                                <TableCell>{getStatusBadge(item.qc_status)}</TableCell>
-                                                <TableCell className="text-xs text-gray-600">{item.notes}</TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
         </PageLayout>
     )
 }

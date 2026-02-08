@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ArrowLeft, Loader2, AlertCircle } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 
 export default function NewCustomerPage() {
@@ -53,11 +53,36 @@ export default function NewCustomerPage() {
       setDispatchAddress1(address)
       setDispatchCity(city)
       setDispatchState(state)
-      // Assuming country is same, skipping pincode if not in main form (wait, main form doesn't have pincode? Let me check)
-      // Main form has: Address, City, State, Country. No Pincode field in main form currently!
-      // I should probably add Pincode to main form too.
+      setDispatchPincode(pincode)
     }
   }
+
+  // Pincode Auto-fill Logic
+  useEffect(() => {
+    if (pincode.length === 6) {
+      fetch(`/api/utils/pincode/${pincode}`)
+        .then(res => res.json())
+        .then(res => {
+          if (res.data.city) {
+            setCity(res.data.city)
+            setState(res.data.state)
+          }
+        })
+    }
+  }, [pincode])
+
+  useEffect(() => {
+    if (dispatchPincode.length === 6) {
+      fetch(`/api/utils/pincode/${dispatchPincode}`)
+        .then(res => res.json())
+        .then(res => {
+          if (res.data.city) {
+            setDispatchCity(res.data.city)
+            setDispatchState(res.data.state)
+          }
+        })
+    }
+  }, [dispatchPincode])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -1,10 +1,10 @@
 "use client"
 
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { PageLayout } from "@/components/page-layout"
-import { useStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -22,6 +22,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ArrowLeft, Plus, Trash2, AlertCircle, Loader2, Save } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
   DialogContent,
@@ -30,360 +33,450 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ArrowLeft, AlertCircle, CheckCircle, Loader2 } from "lucide-react"
-import { useState, useEffect, Suspense } from "react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 
-function NewSalesOrderForm() {
+// Interfaces reuse where possible, or define locally
+interface LineItem {
+  id: string
+  product_id: string
+  description: string
+  quantity: number
+  unit_price: number
+  amount: number
+  uom: string
+  hsn_code?: string
+  quotation_item_id?: string
+}
+
+function SalesOrderForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const quotationId = searchParams.get("quotationId")
 
-  const [quotations, setQuotations] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
+  // Masters
+  const [customers, setCustomers] = useState<any[]>([])
+  const [buyers, setBuyers] = useState<any[]>([])
+  const [products, setProducts] = useState<any[]>([])
+  const [currencies, setCurrencies] = useState<any[]>([])
 
-  useEffect(() => {
-    fetchQuotations()
-  }, [])
+  // Form State
+  const [customerId, setCustomerId] = useState("")
+  const [buyerId, setBuyerId] = useState("")
+  const [poNumber, setPoNumber] = useState("")
+  const [poDate, setPoDate] = useState(new Date().toISOString().split('T')[0])
+  const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0])
+  const [currency, setCurrency] = useState("INR")
+  const [paymentTerms, setPaymentTerms] = useState("")
+  const [deliveryTerms, setDeliveryTerms] = useState("")
+  const [billingAddress, setBillingAddress] = useState<any>({})
 
-  const fetchQuotations = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch('/api/quotations')
-      const result = await response.json()
+  // Consignee Address (New Requirement)
+  const [consigneeName, setConsigneeName] = useState("")
+  const [consigneeAddress, setConsigneeAddress] = useState("")
+  const [consigneeCity, setConsigneeCity] = useState("")
+  const [consigneeState, setConsigneeState] = useState("")
+  const [consigneePin, setConsigneePin] = useState("")
+  const [consigneeContact, setConsigneeContact] = useState("")
 
-      if (response.ok) {
-        setQuotations(result.data?.map((q: any) => ({
-          id: q.id,
-          quotationNumber: q.quotation_number,
-          customerName: q.customer?.name || 'Unknown',
-          items: q.items?.map((i: any) => ({
-            id: i.id,
-            productName: i.product?.name || 'Unknown',
-            quantity: i.quantity,
-            unitPrice: i.unit_price,
-            discount: i.discount_percent,
-            total: i.line_total
-          })) || [],
-          subtotal: q.subtotal,
-          tax: q.tax_amount,
-          total: q.total_amount,
-          currency: q.currency,
-          status: q.status?.toLowerCase()
-        })) || [])
-      } else {
-        setError(result.error || 'Failed to fetch quotations')
-      }
-    } catch (err) {
-      setError('An error occurred while fetching quotations')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  /* console.log('All quotations:', quotations) */
-  const approvedQuotations = quotations.filter(q => q.status === "approved" || q.status === "sent")
-
-  const [selectedQuotationId, setSelectedQuotationId] = useState(quotationId || "")
-  const [customerPONumber, setCustomerPONumber] = useState("")
-  const [deliveryDate, setDeliveryDate] = useState("")
+  const [items, setItems] = useState<LineItem[]>([])
   const [remarks, setRemarks] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // UI State
+  const [loading, setLoading] = useState(false)
+  const [dataLoading, setDataLoading] = useState(true)
+  const [error, setError] = useState("")
   const [showConfirm, setShowConfirm] = useState(false)
 
+  // Fetch Masters
   useEffect(() => {
-    if (quotationId) {
-      setSelectedQuotationId(quotationId)
+    const fetchData = async () => {
+      setDataLoading(true)
+      try {
+        const [custRes, prodRes, currRes] = await Promise.all([
+          fetch('/api/customers'),
+          fetch('/api/products'),
+          fetch('/api/currencies')
+        ])
+
+        const [custData, prodData, currData] = await Promise.all([
+          custRes.json(),
+          prodRes.json(),
+          currRes.json()
+        ])
+
+        setCustomers(custData.data || [])
+        setProducts(prodData.data || [])
+        setCurrencies(currData.data || [])
+
+        // If converting from Quotation
+        if (quotationId) {
+          const qRes = await fetch(`/api/quotations/${quotationId}`)
+          if (qRes.ok) {
+            const result = await qRes.json()
+            const q = result.data
+            setCustomerId(q.customer_id)
+            setBuyerId(q.buyer_id || "")
+            setCurrency(q.currency)
+
+            // Map Items with full descriptions
+            const mappedItems = (q.items || []).map((i: any) => ({
+              id: Math.random().toString(36).substring(2, 9),
+              product_id: i.product_id || "",
+              description: i.description || i.description_text || i.product?.name || "Item",
+              quantity: i.quantity,
+              unit_price: i.unit_price,
+              amount: i.line_total,
+              uom: i.uom || i.product?.uom || 'Unit',
+              quotation_item_id: i.id
+            }))
+            setItems(mappedItems)
+
+            // Default Consignee / Billing from Customer
+            if (q.customer) {
+              setConsigneeName(q.customer.name || "")
+              setConsigneeAddress(q.customer.address || "")
+              setBillingAddress({
+                name: q.customer.name,
+                address: q.customer.address,
+                gstin: q.customer.gst_number
+              })
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch data", err)
+        setError("Failed to load initial data")
+      } finally {
+        setDataLoading(false)
+      }
     }
+    fetchData()
   }, [quotationId])
 
-  const quotation = quotations.find(q => q.id === selectedQuotationId)
-  const isQuotationValid = quotation && (quotation.status === "approved" || quotation.status === "sent")
+  // Fetch Buyers when Customer changes
+  useEffect(() => {
+    if (customerId) {
+      fetch(`/api/buyers?customer_id=${customerId}`)
+        .then(res => res.json())
+        .then(data => setBuyers(data.data || []))
+        .catch(console.error)
 
-  const validateForm = () => {
-    setError("")
-
-    if (!selectedQuotationId) {
-      setError("Please select a quotation")
-      return false
+      // Also fetch customer details for address
+      const cust = customers.find(c => c.id === customerId)
+      if (cust) {
+        setBillingAddress({
+          name: cust.name,
+          address: cust.address, // simplistic mapping
+          gstin: cust.gst_number
+        })
+        // defaulted consignee
+        if (!consigneeName) setConsigneeName(cust.name)
+        if (!consigneeAddress) setConsigneeAddress(cust.address || "")
+      }
+    } else {
+      setBuyers([])
     }
+  }, [customerId, customers, consigneeName, consigneeAddress])
 
-    if (!quotation) {
-      setError("Quotation not found")
-      return false
-    }
 
-    if (quotation.status !== "approved" && quotation.status !== "sent") {
-      setError("Cannot create Sales Order. Quotation must be approved first.")
-      return false
-    }
-
-    if (!customerPONumber.trim()) {
-      setError("Please enter Customer PO Number")
-      return false
-    }
-
-    if (!deliveryDate) {
-      setError("Please set delivery date")
-      return false
-    }
-
-    return true
+  const addItem = () => {
+    setItems([...items, {
+      id: Math.random().toString(36).substring(2, 9),
+      product_id: "",
+      description: "",
+      quantity: 0,
+      unit_price: 0,
+      amount: 0,
+      uom: "Nos"
+    }])
   }
 
-  const handleSubmit = async () => {
-    if (!validateForm()) return
+  const updateItem = (id: string, field: keyof LineItem, value: any) => {
+    setItems(items.map(item => {
+      if (item.id !== id) return item
+      const updated = { ...item, [field]: value }
 
-    setLoading(true)
-
-    try {
-      const response = await fetch("/api/sales-orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          quotation_id: selectedQuotationId,
-          customer_po_number: customerPONumber.trim(),
-          delivery_date: deliveryDate,
-          remarks,
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to create sales order")
+      if (field === 'product_id') {
+        const prod = products.find(p => p.id === value)
+        if (prod) {
+          updated.description = prod.name
+          updated.uom = prod.unit || 'Nos'
+          updated.unit_price = prod.base_price || 0
+        }
       }
 
-      router.push(`/sales/orders/${result.data.id}`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create sales order")
+      if (field === 'quantity' || field === 'unit_price') {
+        updated.amount = (updated.quantity || 0) * (updated.unit_price || 0)
+      }
+      return updated
+    }))
+  }
+
+  const removeItem = (id: string) => {
+    setItems(items.filter(i => i.id !== id))
+  }
+
+  const calculateTotal = () => items.reduce((sum, i) => sum + i.amount, 0)
+
+  const handleSubmit = async () => {
+    if (!poNumber || !poDate) {
+      setError("Customer PO Number and Date are mandatory")
+      return
+    }
+
+    setLoading(true)
+    setError("")
+
+    try {
+      const payload = {
+        company_id: "c4a7e946-5e58-45f8-b40b-74116c944111", // Hardcoded for now, or get from context
+        customer_id: customerId,
+        buyer_id: buyerId,
+        quotation_id: quotationId || null,
+        customer_po_number: poNumber,
+        customer_po_date: poDate,
+        order_date: orderDate,
+        currency,
+        payment_terms: paymentTerms,
+        delivery_terms: deliveryTerms,
+        remarks,
+        billing_address: billingAddress,
+        shipping_address: {
+          name: consigneeName,
+          address: consigneeAddress,
+          city: consigneeCity,
+          state: consigneeState,
+          pincode: consigneePin,
+          contact: consigneeContact
+        },
+        items: items.map(i => ({
+          product_id: i.product_id,
+          quotation_item_id: i.quotation_item_id,
+          description: i.description,
+          quantity: i.quantity,
+          unit_price: i.unit_price,
+          total_amount: i.amount,
+          uom: i.uom,
+          // metadata for specs if needed
+        }))
+      }
+
+      const res = await fetch('/api/sales-orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || "Failed to create Order")
+
+      router.push('/sales/orders')
+    } catch (err: any) {
+      setError(err.message)
+      setShowConfirm(false)
     } finally {
       setLoading(false)
-      setShowConfirm(false)
     }
+  }
+
+  if (dataLoading) {
+    return <div className="flex h-[400px] justify-center items-center"><Loader2 className="animate-spin" /></div>
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Create Sales Order</h2>
-          <p className="text-muted-foreground">
-            Create a sales order from an approved quotation
-          </p>
+    <PageLayout title="New Sales Order">
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h2 className="text-2xl font-bold">New Sales Order</h2>
         </div>
-      </div>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-      <Alert>
-        <CheckCircle className="h-4 w-4" />
-        <AlertDescription>
-          Sales Orders can only be created from approved quotations. This ensures proper approval workflow.
-        </AlertDescription>
-      </Alert>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Select Quotation</CardTitle>
-            <CardDescription>Choose an approved quotation to convert</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Approved Quotation *</Label>
-              <Select value={selectedQuotationId} onValueChange={setSelectedQuotationId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select quotation" />
-                </SelectTrigger>
-                <SelectContent>
-                  {approvedQuotations.length === 0 ? (
-                    <SelectItem value="none" disabled>No approved quotations available</SelectItem>
-                  ) : (
-                    approvedQuotations.map(q => (
-                      <SelectItem key={q.id} value={q.id}>
-                        {q.quotationNumber} - {q.customerName} ({q.status})
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {quotation && (
-              <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Quotation:</span>
-                  <span className="font-mono font-medium">{quotation.quotationNumber}</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Order Details</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Customer *</Label>
+                  <Select value={customerId} onValueChange={setCustomerId} disabled={!!quotationId}>
+                    <SelectTrigger><SelectValue placeholder="Select Customer" /></SelectTrigger>
+                    <SelectContent>
+                      {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Customer:</span>
-                  <span className="font-medium">{quotation.customerName}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Status:</span>
-                  <Badge className={quotation.status === "approved" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}>
-                    {quotation.status}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Value:</span>
-                  <span className="font-bold">
-                    {quotation.currency === "INR" ? "₹" : "$"}{quotation.total.toLocaleString()}
-                  </span>
+                <div className="space-y-2">
+                  <Label>Buyer *</Label>
+                  <Select value={buyerId} onValueChange={setBuyerId}>
+                    <SelectTrigger><SelectValue placeholder="Select Buyer" /></SelectTrigger>
+                    <SelectContent>
+                      {buyers.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>PO Number *</Label>
+                  <Input value={poNumber} onChange={e => setPoNumber(e.target.value)} placeholder="Cust PO No." />
+                </div>
+                <div className="space-y-2">
+                  <Label>PO Date *</Label>
+                  <Input type="date" value={poDate} onChange={e => setPoDate(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Order Date</Label>
+                  <Input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Currency</Label>
+                  <Select value={currency} onValueChange={setCurrency}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {currencies.map(c => <SelectItem key={c.id} value={c.code}>{c.code}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Dispatch / Consignee Details</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Consignee Name</Label>
+                <Input value={consigneeName} onChange={e => setConsigneeName(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Address</Label>
+                <Textarea value={consigneeAddress} onChange={e => setConsigneeAddress(e.target.value)} rows={2} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>City</Label>
+                  <Input value={consigneeCity} onChange={e => setConsigneeCity(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>State</Label>
+                  <Input value={consigneeState} onChange={e => setConsigneeState(e.target.value)} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Pincode</Label>
+                  <Input value={consigneePin} onChange={e => setConsigneePin(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Contact Person</Label>
+                  <Input value={consigneeContact} onChange={e => setConsigneeContact(e.target.value)} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Order Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Customer PO Number *</Label>
-              <Input
-                value={customerPONumber}
-                onChange={(e) => setCustomerPONumber(e.target.value)}
-                placeholder="Enter customer's PO reference"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Delivery Date *</Label>
-              <Input
-                type="date"
-                value={deliveryDate}
-                onChange={(e) => setDeliveryDate(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Remarks</Label>
-              <Input
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                placeholder="Optional notes"
-              />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {quotation && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Order Items (from Quotation)</CardTitle>
+          <CardHeader className="flex flex-row justify-between items-center">
+            <CardTitle className="text-sm">Order Items</CardTitle>
+            <Button size="sm" variant="outline" onClick={addItem}><Plus className="h-4 w-4 mr-2" /> Add Item</Button>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead className="text-right">Quantity</TableHead>
-                  <TableHead className="text-right">Unit Price</TableHead>
-                  <TableHead className="text-right">Discount</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="w-[200px]">Product</TableHead>
+                  <TableHead className="w-[300px]">Description</TableHead>
+                  <TableHead className="w-[100px]">Qty</TableHead>
+                  <TableHead className="w-[100px]">Unit</TableHead>
+                  <TableHead className="w-[150px]">Rate</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {quotation.items.map((item: any) => (
+                {items.map(item => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.productName}</TableCell>
-                    <TableCell className="text-right">{item.quantity}</TableCell>
-                    <TableCell className="text-right">
-                      {quotation.currency === "INR" ? "₹" : "$"}{item.unitPrice.toLocaleString()}
+                    <TableCell>
+                      <Select value={item.product_id} onValueChange={v => updateItem(item.id, 'product_id', v)}>
+                        <SelectTrigger><SelectValue placeholder="Product" /></SelectTrigger>
+                        <SelectContent>
+                          {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
-                    <TableCell className="text-right">{item.discount}%</TableCell>
-                    <TableCell className="text-right font-medium">
-                      {quotation.currency === "INR" ? "₹" : "$"}{item.total.toLocaleString()}
+                    <TableCell>
+                      <Input value={item.description} onChange={e => updateItem(item.id, 'description', e.target.value)} />
+                    </TableCell>
+                    <TableCell>
+                      <Input type="number" value={item.quantity} onChange={e => updateItem(item.id, 'quantity', parseFloat(e.target.value))} />
+                    </TableCell>
+                    <TableCell>{item.uom}</TableCell>
+                    <TableCell>
+                      <Input type="number" value={item.unit_price} onChange={e => updateItem(item.id, 'unit_price', parseFloat(e.target.value))} />
+                    </TableCell>
+                    <TableCell className="text-right">{item.amount.toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-
-            <div className="flex justify-end mt-4">
-              <div className="w-72 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Subtotal:</span>
-                  <span>{quotation.currency === "INR" ? "₹" : "$"}{quotation.subtotal.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Tax (18%):</span>
-                  <span>{quotation.currency === "INR" ? "₹" : "$"}{quotation.tax.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between font-bold border-t pt-2">
-                  <span>Total:</span>
-                  <span>{quotation.currency === "INR" ? "₹" : "$"}{quotation.total.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
           </CardContent>
         </Card>
-      )}
 
-      <div className="flex justify-end gap-3">
-        <Button variant="outline" onClick={() => router.back()} disabled={loading}>
-          Cancel
-        </Button>
-        <Button onClick={() => {
-          if (validateForm()) setShowConfirm(true)
-        }} disabled={!isQuotationValid || loading}>
-          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Create Sales Order
-        </Button>
+        <div className="flex justify-end gap-4">
+          <div className="text-right">
+            <div className="text-lg font-bold">Total: {currency} {calculateTotal().toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">+ Taxes as applicable</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-4">
+          <Button variant="outline" onClick={() => router.back()}>Cancel</Button>
+          <Button onClick={() => setShowConfirm(true)} disabled={items.length === 0}>Create Order</Button>
+        </div>
+
+        <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm Sales Order</DialogTitle>
+              <DialogDescription>
+                Create Sales Order for {customers.find(c => c.id === customerId)?.name} with Total {currency} {calculateTotal().toLocaleString()}?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowConfirm(false)}>Cancel</Button>
+              <Button onClick={handleSubmit} disabled={loading}>
+                {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
+                Confirm & Create
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
       </div>
-
-      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Sales Order Creation</DialogTitle>
-            <DialogDescription>
-              You are about to create a sales order from quotation {quotation?.quotationNumber} for {quotation?.customerName}.
-              <br /><br />
-              <strong>Customer PO:</strong> {customerPONumber}
-              <br />
-              <strong>Value:</strong> {quotation?.currency === "INR" ? "₹" : "$"}{quotation?.total.toLocaleString()}
-              <br /><br />
-              This action will mark the quotation as accepted.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirm(false)} disabled={loading}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit} disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Confirm
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+    </PageLayout>
   )
 }
 
 export default function NewSalesOrderPage() {
   return (
-    <PageLayout title="New Sales Order">
-      <Suspense fallback={
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      }>
-        <NewSalesOrderForm />
-      </Suspense>
-    </PageLayout>
+    <Suspense fallback={<Loader2 className="animate-spin" />}>
+      <SalesOrderForm />
+    </Suspense>
   )
 }

@@ -32,6 +32,7 @@ interface DispatchLineItem {
   id: string
   inventoryId: string
   productId: string
+  salesOrderItemId: string
   productName: string
   heatNumber: string
   availableQuantity: number
@@ -126,6 +127,7 @@ function NewDispatchForm() {
             id: Math.random().toString(36).substring(2, 15),
             inventoryId: inv.id,
             productId: inv.product_id,
+            salesOrderItemId: soItem.id,
             productName: inv.product?.name || 'Unknown',
             heatNumber: inv.heat_number,
             availableQuantity: inv.quantity,
@@ -191,7 +193,9 @@ function NewDispatchForm() {
           items: selectedItems.map(item => ({
             inventory_id: item.inventoryId,
             product_id: item.productId,
-            quantity: item.dispatchQuantity
+            sales_order_item_id: item.salesOrderItemId,
+            quantity: item.dispatchQuantity,
+            heat_number: item.heatNumber
           }))
         })
       })

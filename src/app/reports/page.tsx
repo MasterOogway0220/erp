@@ -27,71 +27,71 @@ import { useState, useMemo } from "react"
 
 export default function ReportsPage() {
   const { salesOrders, quotations, purchaseOrders, inventory, invoices, ncrs, dispatches, customers, vendors } = useStore()
-  
+
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [selectedCustomer, setSelectedCustomer] = useState<string>("all")
-  const [reportType, setReportType] = useState<string>("summary")
-  
+  const [_reportType, _setReportType] = useState<string>("summary")
+
   const filteredSalesOrders = useMemo(() => {
-    return salesOrders.filter(so => {
+    return salesOrders.filter((so: any) => {
       const dateMatch = (!dateFrom || so.createdAt >= dateFrom) && (!dateTo || so.createdAt <= dateTo)
       const customerMatch = selectedCustomer === "all" || so.customerId === selectedCustomer
       return dateMatch && customerMatch
     })
   }, [salesOrders, dateFrom, dateTo, selectedCustomer])
-  
+
   const filteredInvoices = useMemo(() => {
-    return invoices.filter(inv => {
+    return invoices.filter((inv: any) => {
       const dateMatch = (!dateFrom || inv.createdAt >= dateFrom) && (!dateTo || inv.createdAt <= dateTo)
       const customerMatch = selectedCustomer === "all" || inv.customerId === selectedCustomer
       return dateMatch && customerMatch
     })
   }, [invoices, dateFrom, dateTo, selectedCustomer])
-  
-  const totalSalesValue = filteredSalesOrders.reduce((sum, so) => sum + so.total, 0)
-  const totalPurchaseValue = purchaseOrders.reduce((sum, po) => sum + po.total, 0)
-  const quotationConversionRate = quotations.length > 0 
-    ? (quotations.filter(q => q.status === 'accepted' || salesOrders.some(so => so.quotationId === q.id)).length / quotations.length) * 100
+
+  const totalSalesValue = filteredSalesOrders.reduce((sum: number, so: any) => sum + so.total, 0)
+  const totalPurchaseValue = purchaseOrders.reduce((sum: number, po: any) => sum + po.total, 0)
+  const quotationConversionRate = quotations.length > 0
+    ? (quotations.filter((q: any) => q.status === 'accepted' || salesOrders.some((so: any) => so.quotationId === q.id)).length / quotations.length) * 100
     : 0
-  const onTimeDelivery = dispatches.filter(d => d.status === 'delivered').length
-  const openNCRCount = ncrs.filter(n => n.status !== 'closed').length
-  
-  const topProducts = inventory
-    .sort((a, b) => b.quantity - a.quantity)
+  const onTimeDelivery = dispatches.filter((d: any) => d.status === 'delivered').length
+  const openNCRCount = ncrs.filter((n: any) => n.status !== 'closed').length
+
+  const topProducts = [...inventory]
+    .sort((a: any, b: any) => b.quantity - a.quantity)
     .slice(0, 5)
-  
-  const topCustomers = [...new Set(filteredSalesOrders.map(so => so.customerName))]
+
+  const topCustomers = [...new Set(filteredSalesOrders.map((so: any) => so.customerName))]
     .map(name => ({
       name,
-      orders: filteredSalesOrders.filter(so => so.customerName === name).length,
-      value: filteredSalesOrders.filter(so => so.customerName === name).reduce((sum, so) => sum + so.total, 0),
+      orders: filteredSalesOrders.filter((so: any) => so.customerName === name).length,
+      value: filteredSalesOrders.filter((so: any) => so.customerName === name).reduce((sum: number, so: any) => sum + so.total, 0),
     }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 5)
-  
+
   const ageingBuckets = useMemo(() => {
     const now = new Date()
     const buckets = { current: 0, days30: 0, days60: 0, days90: 0, above90: 0 }
-    
-    filteredInvoices.filter(inv => inv.status !== 'paid').forEach(inv => {
+
+    filteredInvoices.filter((inv: any) => inv.status !== 'paid').forEach((inv: any) => {
       const dueDate = new Date(inv.dueDate)
       const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
       const outstanding = inv.total - inv.paidAmount
-      
+
       if (daysOverdue <= 0) buckets.current += outstanding
       else if (daysOverdue <= 30) buckets.days30 += outstanding
       else if (daysOverdue <= 60) buckets.days60 += outstanding
       else if (daysOverdue <= 90) buckets.days90 += outstanding
       else buckets.above90 += outstanding
     })
-    
+
     return buckets
   }, [filteredInvoices])
-  
-  const vendorScorecard = vendors.map(vendor => {
-    const vendorPOs = purchaseOrders.filter(po => po.vendorId === vendor.id)
-    const completedPOs = vendorPOs.filter(po => po.status === 'received' || po.status === 'closed')
+
+  const vendorScorecard = vendors.map((vendor: any) => {
+    const vendorPOs = purchaseOrders.filter((po: any) => po.vendorId === vendor.id)
+    const completedPOs = vendorPOs.filter((po: any) => po.status === 'received' || po.status === 'closed')
     return {
       name: vendor.name,
       totalPOs: vendorPOs.length,
@@ -99,23 +99,23 @@ export default function ReportsPage() {
       rating: vendor.rating,
       isApproved: vendor.isApproved,
     }
-  }).filter(v => v.totalPOs > 0).sort((a, b) => b.totalPOs - a.totalPOs)
-  
+  }).filter(v => v.totalPOs > 0).sort((a: any, b: any) => b.totalPOs - a.totalPOs)
+
   const resetFilters = () => {
     setDateFrom("")
     setDateTo("")
     setSelectedCustomer("all")
   }
-  
+
   const exportToCSV = (data: Record<string, unknown>[], filename: string) => {
     if (data.length === 0) return
-    
+
     const headers = Object.keys(data[0])
     const csvContent = [
       headers.join(','),
       ...data.map(row => headers.map(h => JSON.stringify(row[h] ?? '')).join(','))
     ].join('\n')
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -124,9 +124,9 @@ export default function ReportsPage() {
     a.click()
     window.URL.revokeObjectURL(url)
   }
-  
+
   const exportSalesReport = () => {
-    const data = filteredSalesOrders.map(so => ({
+    const data = filteredSalesOrders.map((so: any) => ({
       'SO Number': so.soNumber,
       'Customer': so.customerName,
       'Customer PO': so.customerPONumber,
@@ -137,9 +137,9 @@ export default function ReportsPage() {
     }))
     exportToCSV(data, 'sales_orders_report')
   }
-  
+
   const exportInvoiceReport = () => {
-    const data = filteredInvoices.map(inv => ({
+    const data = filteredInvoices.map((inv: any) => ({
       'Invoice Number': inv.invoiceNumber,
       'Customer': inv.customerName,
       'Date': inv.createdAt,
@@ -151,13 +151,13 @@ export default function ReportsPage() {
     }))
     exportToCSV(data, 'invoices_report')
   }
-  
+
   const exportAgeingReport = () => {
-    const data = filteredInvoices.filter(inv => inv.status !== 'paid').map(inv => {
+    const data = filteredInvoices.filter((inv: any) => inv.status !== 'paid').map((inv: any) => {
       const now = new Date()
       const dueDate = new Date(inv.dueDate)
       const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
-      
+
       return {
         'Invoice Number': inv.invoiceNumber,
         'Customer': inv.customerName,
@@ -169,7 +169,7 @@ export default function ReportsPage() {
     })
     exportToCSV(data, 'payment_ageing_report')
   }
-  
+
   return (
     <PageLayout title="Reports & MIS">
       <div className="space-y-6">
@@ -179,7 +179,7 @@ export default function ReportsPage() {
             <p className="text-muted-foreground">Management Information System for decision making</p>
           </div>
         </div>
-        
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
@@ -212,7 +212,7 @@ export default function ReportsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Customers</SelectItem>
-                    {customers.map(c => (
+                    {customers.map((c: any) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -226,7 +226,7 @@ export default function ReportsPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardContent className="p-4">
@@ -281,57 +281,108 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         </div>
-        
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Top Customers by Value</CardTitle>
+              <CardDescription>Based on filtered date range</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={exportSalesReport}>
+              <Download className="mr-2 h-4 w-4" /> Export
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Customer</TableHead>
+                  <TableHead className="text-right">Orders</TableHead>
+                  <TableHead className="text-right">Value</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {topCustomers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center py-4 text-muted-foreground">
+                      No data available
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  topCustomers.map((customer, i) => (
+                    <TableRow key={customer.name}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs">
+                            {i + 1}
+                          </span>
+                          {customer.name}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">{customer.orders}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        ₹{(customer.value / 100000).toFixed(1)}L
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-base">Top Customers by Value</CardTitle>
-                <CardDescription>Based on filtered date range</CardDescription>
+                <CardTitle className="text-base">PO Aging Analysis</CardTitle>
+                <CardDescription>Pending purchase orders by days open</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={exportSalesReport}>
-                <Download className="mr-2 h-4 w-4" /> Export
-              </Button>
+              <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">Procurement</Badge>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Customer</TableHead>
-                    <TableHead className="text-right">Orders</TableHead>
-                    <TableHead className="text-right">Value</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {topCustomers.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center py-4 text-muted-foreground">
-                        No data available
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    topCustomers.map((customer, i) => (
-                      <TableRow key={customer.name}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs">
-                              {i + 1}
-                            </span>
-                            {customer.name}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">{customer.orders}</TableCell>
-                        <TableCell className="text-right font-medium">
-                          ₹{(customer.value / 100000).toFixed(1)}L
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+              <div className="space-y-4">
+                {(() => {
+                  const now = new Date()
+                  const poAgeing = { current: 0, days7: 0, days15: 0, days30: 0, above30: 0 }
+                  purchaseOrders.filter((po: any) => po.status !== 'received' && po.status !== 'closed').forEach((po: any) => {
+                    const createdDate = new Date(po.createdAt)
+                    const daysOpen = Math.floor((now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24))
+                    if (daysOpen <= 3) poAgeing.current += po.total
+                    else if (daysOpen <= 7) poAgeing.days7 += po.total
+                    else if (daysOpen <= 15) poAgeing.days15 += po.total
+                    else if (daysOpen <= 30) poAgeing.days30 += po.total
+                    else poAgeing.above30 += po.total
+                  })
+                  return (
+                    <>
+                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                        <span className="text-sm font-medium">Recent (0-3 Days)</span>
+                        <span className="font-bold">₹{(poAgeing.current / 100000).toFixed(2)}L</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                        <span className="text-sm font-medium">7 Days Pending</span>
+                        <span className="font-bold text-blue-700">₹{(poAgeing.days7 / 100000).toFixed(2)}L</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
+                        <span className="text-sm font-medium">15 Days Pending</span>
+                        <span className="font-bold text-yellow-700">₹{(poAgeing.days15 / 100000).toFixed(2)}L</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
+                        <span className="text-sm font-medium">30 Days Overdue</span>
+                        <span className="font-bold text-orange-700">₹{(poAgeing.days30 / 100000).toFixed(2)}L</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-100">
+                        <span className="text-sm font-medium font-bold text-red-600">Critical ({'>'}30 Days)</span>
+                        <span className="font-bold text-red-800">₹{(poAgeing.above30 / 100000).toFixed(2)}L</span>
+                      </div>
+                    </>
+                  )
+                })()}
+              </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -368,7 +419,7 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         </div>
-        
+
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader>
@@ -391,7 +442,7 @@ export default function ReportsPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    topProducts.map((item) => (
+                    topProducts.map((item: any) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.productName}</TableCell>
                         <TableCell className="font-mono text-xs">{item.heatNumber}</TableCell>
@@ -403,7 +454,7 @@ export default function ReportsPage() {
               </Table>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Vendor Scorecard</CardTitle>
@@ -426,7 +477,7 @@ export default function ReportsPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    vendorScorecard.map((vendor) => (
+                    vendorScorecard.map((vendor: any) => (
                       <TableRow key={vendor.name}>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
@@ -449,7 +500,7 @@ export default function ReportsPage() {
             </CardContent>
           </Card>
         </div>
-        
+
         <div className="grid gap-6 lg:grid-cols-3">
           <Card>
             <CardHeader>
@@ -460,31 +511,31 @@ export default function ReportsPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Open</span>
                   <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                    {filteredSalesOrders.filter(so => so.status === 'open' || so.status === 'confirmed').length}
+                    {filteredSalesOrders.filter((so: any) => so.status === 'open' || so.status === 'confirmed').length}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">In Progress</span>
                   <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                    {filteredSalesOrders.filter(so => so.status === 'in_progress').length}
+                    {filteredSalesOrders.filter((so: any) => so.status === 'in_progress').length}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Partial Dispatch</span>
                   <Badge variant="secondary" className="bg-purple-100 text-purple-800">
-                    {filteredSalesOrders.filter(so => so.status === 'partial_dispatch').length}
+                    {filteredSalesOrders.filter((so: any) => so.status === 'partial_dispatch').length}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Completed</span>
                   <Badge variant="secondary" className="bg-green-100 text-green-800">
-                    {filteredSalesOrders.filter(so => so.status === 'completed' || so.status === 'dispatched').length}
+                    {filteredSalesOrders.filter((so: any) => so.status === 'completed' || so.status === 'dispatched').length}
                   </Badge>
                 </div>
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-base">Invoice Status Summary</CardTitle>
@@ -497,31 +548,31 @@ export default function ReportsPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Draft</span>
                   <Badge variant="secondary" className="bg-gray-100 text-gray-800">
-                    {filteredInvoices.filter(i => i.status === 'draft').length}
+                    {filteredInvoices.filter((i: any) => i.status === 'draft').length}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Sent</span>
                   <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                    {filteredInvoices.filter(i => i.status === 'sent').length}
+                    {filteredInvoices.filter((i: any) => i.status === 'sent').length}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Partial Paid</span>
                   <Badge variant="secondary" className="bg-orange-100 text-orange-800">
-                    {filteredInvoices.filter(i => i.status === 'partial_paid').length}
+                    {filteredInvoices.filter((i: any) => i.status === 'partial_paid').length}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Paid</span>
                   <Badge variant="secondary" className="bg-green-100 text-green-800">
-                    {filteredInvoices.filter(i => i.status === 'paid').length}
+                    {filteredInvoices.filter((i: any) => i.status === 'paid').length}
                   </Badge>
                 </div>
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Quality Metrics</CardTitle>
@@ -537,19 +588,19 @@ export default function ReportsPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Accepted Stock</span>
                   <Badge variant="secondary" className="bg-green-100 text-green-800">
-                    {inventory.filter(i => i.inspectionStatus === 'accepted').length}
+                    {inventory.filter((i: any) => i.inspectionStatus === 'accepted').length}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Pending Inspection</span>
                   <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                    {inventory.filter(i => i.inspectionStatus === 'pending').length}
+                    {inventory.filter((i: any) => i.inspectionStatus === 'pending').length}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">On Hold</span>
                   <Badge variant="secondary" className="bg-orange-100 text-orange-800">
-                    {inventory.filter(i => i.inspectionStatus === 'hold').length}
+                    {inventory.filter((i: any) => i.inspectionStatus === 'hold').length}
                   </Badge>
                 </div>
               </div>

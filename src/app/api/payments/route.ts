@@ -2,138 +2,146 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { apiError, apiSuccess, generateDocumentNumber, logAuditEvent } from '@/lib/api-utils'
-import { createPaymentSchema } from '@/lib/validations/schemas'
+import { createPaymentReceiptSchema } from '@/lib/validations/schemas'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return apiError('Unauthorized', 401)
   }
-  
+
   const { searchParams } = new URL(request.url)
-  const invoiceId = searchParams.get('invoice_id')
-  
+  const customerId = searchParams.get('customer_id')
+
   let query = supabase
-    .from('payments')
+    .from('payment_receipts')
     .select(`
       *,
-      invoice:invoices(id, invoice_number, customer:customers(id, name))
+      customer:customers(id, name),
+      allocations:payment_receipt_items(
+        *,
+        invoice:invoices(id, invoice_number)
+      )
     `)
     .order('created_at', { ascending: false })
-  
-  if (invoiceId) {
-    query = query.eq('invoice_id', invoiceId)
+
+  if (customerId) {
+    query = query.eq('customer_id', customerId)
   }
-  
+
   const { data, error } = await query
-  
+
   if (error) {
     return apiError(error.message)
   }
-  
+
   return apiSuccess(data)
 }
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const adminClient = createAdminClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return apiError('Unauthorized', 401)
   }
-  
+
   const body = await request.json()
-  const validation = createPaymentSchema.safeParse(body)
-  
+  const validation = createPaymentReceiptSchema.safeParse(body)
+
   if (!validation.success) {
-    return apiError(validation.error.errors[0].message)
+    return apiError(validation.error.issues[0].message)
   }
-  
-  const { invoice_id, amount, payment_mode, reference_number, payment_date } = validation.data
-  
-  const { data: invoice, error: invoiceError } = await adminClient
-    .from('invoices')
-    .select(`
-      *,
-      customer:customers(id, name)
-    `)
-    .eq('id', invoice_id)
+
+  const {
+    customer_id,
+    amount,
+    payment_mode,
+    reference_number,
+    receipt_date,
+    bank_details,
+    remarks,
+    allocations
+  } = validation.data
+
+  // Fetch company_id for the user (assuming single company context for now or fetching from first customer record/context)
+  // In a real multi-tenant app, this would be in the session/context.
+  // We'll fetch the company_id from the customer for consistency.
+  const { data: customer } = await adminClient
+    .from('customers')
+    .select('company_id')
+    .eq('id', customer_id)
     .single()
-  
-  if (invoiceError || !invoice) {
-    return apiError('Invoice not found')
+
+  if (!customer) {
+    return apiError('Customer not found')
   }
-  
-  if (invoice.status !== 'sent' && invoice.status !== 'partial_paid' && invoice.status !== 'overdue') {
-    return apiError('Payment can only be recorded for sent, partially paid, or overdue invoices', 400)
-  }
-  
-  const outstanding = invoice.total - invoice.paid_amount
-  
-  if (amount > outstanding) {
-    return apiError(`Payment amount (${amount}) exceeds outstanding balance (${outstanding})`, 400)
-  }
-  
-  if (payment_mode !== 'cash' && !reference_number) {
-    return apiError('Reference number is required for non-cash payments', 400)
-  }
-  
-  const receiptNumber = await generateDocumentNumber('RCP')
-  
-  const { data: payment, error: paymentError } = await adminClient
-    .from('payments')
+
+  const receiptNumber = await generateDocumentNumber('RCPT', customer.company_id)
+
+  const { data: receipt, error: receiptError } = await adminClient
+    .from('payment_receipts')
     .insert({
+      company_id: customer.company_id,
+      customer_id,
       receipt_number: receiptNumber,
-      invoice_id,
+      receipt_date,
       amount,
       payment_mode,
       reference_number,
-      payment_date,
+      bank_details,
+      remarks,
       created_by: user.id,
     })
     .select()
     .single()
-  
-  if (paymentError) {
-    return apiError(paymentError.message)
+
+  if (receiptError) {
+    return apiError(receiptError.message)
   }
-  
-  const newPaidAmount = invoice.paid_amount + amount
-  const newStatus = newPaidAmount >= invoice.total ? 'paid' : 'partial_paid'
-  
-  await adminClient
-    .from('invoices')
-    .update({ 
-      paid_amount: newPaidAmount,
-      status: newStatus 
-    })
-    .eq('id', invoice_id)
-  
-  if (invoice.customer_id) {
-    const { data: customer } = await adminClient
-      .from('customers')
-      .select('current_outstanding')
-      .eq('id', invoice.customer_id)
-      .single()
-    
-    if (customer) {
-      const newOutstanding = Math.max(0, (customer.current_outstanding || 0) - amount)
-      await adminClient
-        .from('customers')
-        .update({ current_outstanding: newOutstanding })
-        .eq('id', invoice.customer_id)
+
+  if (allocations && allocations.length > 0) {
+    const allocationItems = allocations.map(a => ({
+      company_id: customer.company_id,
+      receipt_id: receipt.id,
+      invoice_id: a.invoice_id,
+      amount: a.amount
+    }))
+
+    const { error: allocationError } = await adminClient
+      .from('payment_receipt_items')
+      .insert(allocationItems)
+
+    if (allocationError) {
+      // rollback (manual in this simple setup)
+      await adminClient.from('payment_receipts').delete().eq('id', receipt.id)
+      return apiError(allocationError.message)
     }
+
+    // Process each allocation: decrement outstanding and update invoice status
+    for (const allocation of allocations) {
+      await adminClient.rpc('decrement_customer_outstanding', {
+        p_customer_id: customer_id,
+        p_amount: allocation.amount
+      })
+
+      await adminClient.rpc('process_invoice_payment', {
+        p_invoice_id: allocation.invoice_id,
+        p_payment_amount: allocation.amount
+      })
+    }
+  } else {
+    // If no allocations, just decrement customer outstanding (unallocated payment)
+    await adminClient.rpc('decrement_customer_outstanding', {
+      p_customer_id: customer_id,
+      p_amount: amount
+    })
   }
-  
-  await logAuditEvent('payments', payment.id, 'CREATE', null, payment, user.id)
-  await logAuditEvent('invoices', invoice_id, 'STATUS_CHANGE', 
-    { status: invoice.status, paid_amount: invoice.paid_amount },
-    { status: newStatus, paid_amount: newPaidAmount },
-    user.id
-  )
-  
-  return apiSuccess(payment, 201)
+
+  await logAuditEvent('payment_receipts', receipt.id, 'CREATE', null, receipt, user.id)
+
+  return apiSuccess(receipt, 201)
 }
