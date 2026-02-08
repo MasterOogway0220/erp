@@ -40,12 +40,12 @@ export async function generateDocumentNumber(
   if (companyId && !companyCode) {
     const { data: company } = await supabase
       .from('companies')
-      .select('code')
+      .select('name')
       .eq('id', companyId)
       .single()
 
-    if (company?.code) {
-      code = company.code
+    if (company?.name) {
+      code = company.name.substring(0, 3).toUpperCase();
     }
   }
 

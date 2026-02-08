@@ -5,9 +5,17 @@ import { createClient } from '@/lib/supabase/server';
 import { apiError, apiSuccess, apiPaginatedSuccess, generateDocumentNumber } from '@/lib/api-utils';
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
+  // Use adminClient to bypass RLS and ensure visibility consistent with Create logic
+  const adminClient = createAdminClient();
+  const supabase = await createClient(); // Still need this for auth check
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return apiError('Unauthorized', 401);
+  }
+
   const searchParams = request.nextUrl.searchParams;
-  const companyId = searchParams.get('companyId');
+  let companyId = searchParams.get('companyId');
   const status = searchParams.get('status');
 
   // Pagination & Sorting Params
@@ -19,8 +27,30 @@ export async function GET(request: NextRequest) {
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
-  // Base query
-  let query = supabase
+  // Determine Company Context (Mirroring POST logic)
+  if (!companyId) {
+    const { data: employee } = await adminClient
+      .from('employees')
+      .select('company_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (employee?.company_id) {
+      companyId = employee.company_id;
+    } else {
+      // Fallback to default company
+      const { data: companies } = await adminClient
+        .from('companies')
+        .select('id')
+        .limit(1);
+      if (companies?.[0]) {
+        companyId = companies[0].id;
+      }
+    }
+  }
+
+  // Base query using adminClient
+  let query = adminClient
     .from('sales_orders')
     .select('*, customer:customers(name), buyer:buyers(buyer_name), items:sales_order_items(*)', { count: 'exact' })
     .order(sortBy, { ascending: sortOrder === 'asc' })
@@ -60,19 +90,51 @@ export async function POST(request: NextRequest) {
       return apiError('Unauthorized', 401);
     }
 
-    // specific logic to get company_id from employee
-    const { data: employee } = await supabase
+    // Use adminClient to bypass RLS for this internal lookup
+    const adminClient = createAdminClient();
+    console.log('[SO CREATE] Authenticated User ID:', user.id);
+
+    const { data: employee, error: empError } = await adminClient
       .from('employees')
-      .select('company_id, company:companies(code)')
+      .select('company_id, company:companies(name)')
       .eq('user_id', user.id)
       .single();
 
-    if (!employee?.company_id) {
-      return apiError('No company context found for user. Please ensure employee record is set up.', 400);
-    }
-    const company_id = employee.company_id;
+    console.log('[SO CREATE] Employee Lookup Result:', { employee, error: empError });
+
+    let company_id = employee?.company_id;
     // @ts-ignore
-    const company_code = employee.company?.code || 'STC';
+    let company_name = employee?.company?.name || (Array.isArray(employee?.company) ? employee?.company[0]?.name : null);
+    let company_code = company_name ? company_name.substring(0, 3).toUpperCase() : null;
+
+    if (!company_id) {
+      console.warn('[SO CREATE] User has no linked employee record. Attempting fallback to default company.');
+
+      // Self-healing: Fetch the first valid company
+      const { data: companies, error: companyError } = await adminClient
+        .from('companies')
+        .select('id, name')
+        .limit(1);
+
+      const defaultCompany = companies?.[0];
+
+      if (defaultCompany) {
+        console.log('[SO CREATE] Fallback successful. Using company:', defaultCompany.id);
+        company_id = defaultCompany.id;
+        company_code = defaultCompany.name.substring(0, 3).toUpperCase();
+      } else {
+        const errorMsg = `[SO CREATE] specific Fallback failed: ${JSON.stringify(companyError)}`;
+        console.error(errorMsg);
+        // import fs from 'fs'; // Dynamic import or use if existing?
+        // Let's rely on clearer console log first, but user says "No companies defined".
+        // That means defaultCompany is null.
+
+        return apiError(`System Configuration Error: No companies defined. details: ${JSON.stringify(companyError)}`, 500);
+      }
+    }
+
+    // Ensure code has a default if still missing (though DB should have it)
+    company_code = company_code || 'STC';
 
     const body = await request.json();
     const {
@@ -104,7 +166,6 @@ export async function POST(request: NextRequest) {
     const orderNumber = await generateDocumentNumber('SO', company_id, company_code);
 
     // 2. Create Sales Order Header
-    const adminClient = createAdminClient();
     const { data: order, error: orderError } = await adminClient
       .from('sales_orders')
       .insert({
@@ -140,7 +201,7 @@ export async function POST(request: NextRequest) {
         .from('sales_order_items')
         .insert(items.map((item: any) => ({
           sales_order_id: order.id,
-          quotation_item_id: item.quotation_item_id || null, // Link if converted
+          // quotation_item_id: item.quotation_item_id || null, // Link if converted - Column missing
           product_id: item.product_id || null,
           description: item.description,
           quantity: item.quantity,

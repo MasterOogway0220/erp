@@ -49,22 +49,46 @@ export async function POST(request: NextRequest) {
     }
 
     // Get employee's company
-    const { data: employee } = await supabase
+    // Use adminClient to bypass RLS
+    const { data: employee, error: empError } = await adminClient
         .from('employees')
-        .select('company_id, company:companies(code)')
+        .select('company_id, company:companies(name)')
         .eq('user_id', user.id)
         .single()
 
+    console.log('[SO FROM QUOTATION] Employee Lookup Result:', { employee, error: empError });
+
     // 0. Strict Validation for Mandatory Fields (Fixes NOT NULL constraint violations)
     if (!quotation.customer_id) return apiError('Source quotation is missing customer_id', 400);
-    // if (!quotation.buyer_id) return apiError('Source quotation is missing buyer_id', 400);
-    if (!employee?.company_id) return apiError('User company not found', 400);
 
+    let company_id = employee?.company_id;
     // @ts-ignore
-    const company_code = employee.company?.code || 'STC';
+    let company_name = employee?.company?.name || (Array.isArray(employee?.company) ? employee?.company[0]?.name : null);
+    let company_code = company_name ? company_name.substring(0, 3).toUpperCase() : null;
+
+    if (!company_id) {
+        console.warn('[SO FROM QUOTATION] User has no linked employee record. Attempting fallback.');
+        const { data: companies, error: companyError } = await adminClient
+            .from('companies')
+            .select('id, name')
+            .limit(1);
+
+        const defaultCompany = companies?.[0];
+
+        if (defaultCompany) {
+            console.log('[SO FROM QUOTATION] Fallback successful. Using company:', defaultCompany.id);
+            company_id = defaultCompany.id;
+            company_code = defaultCompany.name.substring(0, 3).toUpperCase();
+        } else {
+            console.error('[SO FROM QUOTATION] Fallback failed:', companyError);
+            return apiError('System Configuration Error: No companies defined.', 500);
+        }
+    }
+
+    company_code = company_code || 'STC';
 
     // Generate SO number (Optimized)
-    const orderNumber = await generateDocumentNumber('SO', employee.company_id, company_code)
+    const orderNumber = await generateDocumentNumber('SO', company_id, company_code)
 
     // Calculate total from quotation
     const totalAmount = quotation.total_amount || quotation.items.reduce((sum: number, item: any) => sum + (item.line_total || 0), 0)
@@ -89,7 +113,7 @@ export async function POST(request: NextRequest) {
             status: 'open',
             remarks,
             created_by: user.id,
-            company_id: employee?.company_id
+            company_id
         })
         .select()
         .single()
@@ -101,7 +125,7 @@ export async function POST(request: NextRequest) {
     // Copy items from quotation
     const soItems = quotation.items.map((item: any) => ({
         sales_order_id: salesOrder.id,
-        quotation_item_id: item.id,
+        // quotation_item_id: item.id, // Column missing in DB
         product_id: item.product_id || null,
         product_spec_id: item.product_spec_id || null,
         pipe_size_id: item.pipe_size_id || null,

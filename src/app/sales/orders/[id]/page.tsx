@@ -92,9 +92,13 @@ export default function SalesOrderDetailPage() {
       setLoading(true)
       const res = await fetch(`/api/sales-orders/${id}`)
       const data = await res.json()
-      if (res.ok) setOrder(data.data)
-    } catch (err) {
-      console.error("Failed to fetch order")
+      if (res.ok) {
+        setOrder(data.data)
+      } else {
+        setError(data.error || "Failed to fetch order")
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to fetch order")
     } finally {
       setLoading(false)
     }
@@ -151,6 +155,24 @@ export default function SalesOrderDetailPage() {
       <PageLayout title="Sales Order">
         <div className="flex items-center justify-center min-h-[400px]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </PageLayout>
+    )
+  }
+
+  if (error) {
+    return (
+      <PageLayout title="Error">
+        <div className="flex flex-col items-center justify-center py-16">
+          <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+          <p className="text-xl font-semibold mb-2">Error Loading Sales Order</p>
+          <code className="bg-muted p-4 rounded text-sm text-destructive mb-4 max-w-2xl whitespace-pre-wrap">
+            {error}
+          </code>
+          <Button onClick={() => router.push("/sales/orders")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Sales Orders
+          </Button>
         </div>
       </PageLayout>
     )

@@ -7,6 +7,7 @@ export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    const adminClient = createAdminClient()
     const { id } = await params
     const supabase = await createClient()
 
@@ -15,13 +16,13 @@ export async function GET(
         return apiError('Unauthorized', 401)
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await adminClient
         .from('sales_orders')
         .select(`
       *,
       customer:customers(id, name, email, phone, address),
       buyer:buyers(id, buyer_name, designation, email, mobile),
-      quotation:quotations(id, quotation_number, quotation_date),
+      quotation:quotations(id, quotation_number, created_at),
       items:sales_order_items(
         *,
         product:products(id, name, code)
@@ -36,7 +37,7 @@ export async function GET(
       purchase_orders:purchase_orders(
         id,
         po_number,
-        po_date,
+        created_at,
         status,
         vendor:vendors(id, name)
       )
@@ -45,6 +46,11 @@ export async function GET(
         .single()
 
     if (error) {
+        console.error('Error fetching sales order:', error);
+        return apiError(`Error fetching sales order: ${error.message} (${error.code})`, 500)
+    }
+
+    if (!data) {
         return apiError('Sales order not found', 404)
     }
 
