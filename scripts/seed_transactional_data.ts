@@ -90,7 +90,7 @@ async function seedTransactions() {
                 const soNum = `SO-2026-${i.toString().padStart(4, '0')}`
 
                 await client.query(`
-                    INSERT INTO sales_orders (id, so_number, quotation_id, customer_id, subtotal, tax_amount, total_amount, status, created_by, company_id)
+                    INSERT INTO sales_orders (id, order_number, quotation_id, customer_id, subtotal, tax_amount, total_amount, status, created_by, company_id)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, 'in_progress', $8, $9)
                 `, [soId, soNum, quoteId, customer.id, subtotal, tax, total, userId, companyId])
 

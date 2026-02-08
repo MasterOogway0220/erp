@@ -30,9 +30,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ArrowLeft, Plus, Trash2, AlertCircle, Loader2, Save } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, AlertCircle, Loader2, Save, CheckCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { TermsConditionsEditor } from "@/components/quotations/TermsConditionsEditor" // Import TermsConditionsEditor
+import { TermsConditionsEditor } from "@/components/quotations/TermsConditionsEditor"
 
 interface PipeSize {
   id: string
@@ -127,7 +127,7 @@ function StandardQuotationForm() {
   const [loading, setLoading] = useState(false)
   const [dataLoading, setDataLoading] = useState(true)
   const [error, setError] = useState("")
-  const [showConfirm, setShowConfirm] = useState(false)
+  const [showConfirm, setShowConfirm] = useState<'draft' | 'approval' | false>(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -435,6 +435,7 @@ function StandardQuotationForm() {
     setError("")
     try {
       const payload = {
+        status: showConfirm === 'approval' ? 'pending_approval' : 'draft',
         customer_id: customerId,
         buyer_id: buyerId || null,
         parent_quotation_id: parentQuotationId || null,
@@ -646,9 +647,14 @@ function StandardQuotationForm() {
               <span>Total:</span>
               <span>{currency} {total.toLocaleString()}</span>
             </div>
-            <Button className="w-full mt-4" size="lg" onClick={() => setShowConfirm(true)} disabled={lineItems.length === 0}>
-              <Save className="mr-2 h-4 w-4" /> Save Quotation
-            </Button>
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <Button className="w-full" variant="outline" onClick={() => setShowConfirm('draft')} disabled={lineItems.length === 0}>
+                <Save className="mr-2 h-4 w-4" /> Save Draft
+              </Button>
+              <Button className="w-full" onClick={() => setShowConfirm('approval')} disabled={lineItems.length === 0}>
+                <CheckCircle className="mr-2 h-4 w-4" /> Submit for Approval
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -803,24 +809,29 @@ function StandardQuotationForm() {
         </CardContent>
       </Card>
 
-      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+      <Dialog open={!!showConfirm} onOpenChange={(open) => !open && setShowConfirm(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Quotation</DialogTitle>
+            <DialogTitle>
+              {showConfirm === 'approval' ? 'Submit for Approval' : 'Save Quotation Draft'}
+            </DialogTitle>
             <DialogDescription>
-              Are you sure you want to create this standard quotation for a total of {currency} {total.toLocaleString()}?
+              {showConfirm === 'approval'
+                ? `Are you sure you want to submit this quotation for approval? Total: ${currency} ${total.toLocaleString()}`
+                : `Save this quotation as a draft? You can edit it later. Total: ${currency} ${total.toLocaleString()}`
+              }
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowConfirm(false)}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Confirm & Save
+              {showConfirm === 'approval' ? 'Confirm & Submit' : 'Save Draft'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   )
 }
 

@@ -208,7 +208,7 @@ export default function InvoiceDetailPage() {
               <CardContent>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-mono font-medium">{invoice.sales_order.so_number}</p>
+                    <p className="font-mono font-medium">{invoice.sales_order.order_number}</p>
                     <p className="text-sm text-muted-foreground">Customer PO: {invoice.sales_order.customer_po_number}</p>
                   </div>
                   <Button variant="ghost" size="sm" asChild>

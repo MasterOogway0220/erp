@@ -28,10 +28,24 @@ import {
   Clock,
   AlertCircle,
   ClipboardCheck,
-  Factory
+  Factory,
+  History,
+  Send,
+  X
 } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -65,6 +79,9 @@ export default function SalesOrderDetailPage() {
   const [order, setOrder] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const [showAmendmentDialog, setShowAmendmentDialog] = useState(false)
+  const [amendmentReason, setAmendmentReason] = useState("")
+  const [error, setError] = useState("")
 
   useEffect(() => {
     if (id) fetchOrder()
@@ -104,6 +121,31 @@ export default function SalesOrderDetailPage() {
     }
   }
 
+  const handleCreateAmendment = async () => {
+    try {
+      setUpdating(true)
+      setError("")
+      const response = await fetch(`/api/sales-orders/${id}/revisions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ change_reason: amendmentReason })
+      })
+
+      const result = await response.json()
+      if (response.ok) {
+        setShowAmendmentDialog(false)
+        setAmendmentReason("")
+        router.push(`/sales/orders/${result.data.id}`)
+      } else {
+        setError(result.error || 'Failed to create amendment')
+      }
+    } catch (err) {
+      setError('An error occurred while creating amendment')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
   if (loading) {
     return (
       <PageLayout title="Sales Order">
@@ -134,7 +176,7 @@ export default function SalesOrderDetailPage() {
   const deliveryProgress = totalOrdered > 0 ? Math.round((totalDelivered / totalOrdered) * 100) : 0
 
   return (
-    <PageLayout title={`Sales Order - ${order.so_number}`}>
+    <PageLayout title={`Sales Order - ${order.order_number}`}>
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -143,10 +185,13 @@ export default function SalesOrderDetailPage() {
             </Button>
             <div>
               <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-bold tracking-tight">{order.so_number}</h2>
+                <h2 className="text-2xl font-bold tracking-tight">{order.order_number}</h2>
                 <Badge className={statusColors[order.status] || "bg-gray-100"}>
                   {order.status?.replace(/_/g, " ")}
                 </Badge>
+                {order.version_number && (
+                  <Badge variant="outline">Rev {order.version_number}</Badge>
+                )}
               </div>
               <p className="text-muted-foreground text-sm font-medium">Customer: {order.customer?.name}</p>
             </div>
@@ -167,6 +212,44 @@ export default function SalesOrderDetailPage() {
                 <Package className="mr-2 h-4 w-4" /> Create PO
               </Link>
             </Button>
+            {order.status !== 'cancelled' && order.is_latest_version !== false && (
+              <Dialog open={showAmendmentDialog} onOpenChange={setShowAmendmentDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <History className="mr-2 h-4 w-4" /> Amend
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create Amendment</DialogTitle>
+                    <DialogDescription>
+                      Create a new version of this Sales Order. This will mark the current version as historical and create a new draft for editing.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="reason">Reason for Amendment *</Label>
+                      <Textarea
+                        id="reason"
+                        value={amendmentReason}
+                        onChange={(e) => setAmendmentReason(e.target.value)}
+                        placeholder="e.g., Change in quantity, price update, delivery date adjustment"
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowAmendmentDialog(false)} disabled={updating}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleCreateAmendment} disabled={updating || !amendmentReason.trim()}>
+                      {updating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Create Amendment
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
             <Button className="bg-primary text-white font-bold shadow-md hover:shadow-lg transition-all">
               <FileText className="mr-2 h-4 w-4" /> Generate Invoice
             </Button>
@@ -272,6 +355,7 @@ export default function SalesOrderDetailPage() {
                       <Select
                         value={item.status || 'pending'}
                         onValueChange={(val) => updateItemStatus(item.id, val)}
+                        disabled={order.is_latest_version === false}
                       >
                         <SelectTrigger className={`h-8 text-[11px] font-bold uppercase transition-all ${itemStatusColors[item.status || 'pending']}`}>
                           <SelectValue />
@@ -341,7 +425,7 @@ export default function SalesOrderDetailPage() {
                 <div className="mt-1 h-3 w-3 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
                 <div>
                   <p className="text-xs font-bold text-primary uppercase tracking-tight">Sales Order Issued</p>
-                  <p className="text-[10px] text-muted-foreground">Order {order.so_number} created from quotation.</p>
+                  <p className="text-[10px] text-muted-foreground">Order {order.order_number} created from quotation.</p>
                 </div>
               </div>
             </CardContent>

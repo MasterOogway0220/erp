@@ -91,72 +91,72 @@ function compareArrayOfObjects(arr1: any[], arr2: any[], keyIdentifier: string):
 
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params;
-  const supabase = await createClient();
-  const adminClient = createAdminClient();
+    const { id } = await params;
+    const supabase = await createClient();
+    const adminClient = createAdminClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return apiError('Unauthorized', 401);
-  }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        return apiError('Unauthorized', 401);
+    }
 
-  const { searchParams } = new URL(request.url);
-  const v1Param = searchParams.get('v1');
-  const v2Param = searchParams.get('v2');
+    const { searchParams } = new URL(request.url);
+    const v1Param = searchParams.get('v1');
+    const v2Param = searchParams.get('v2');
 
-  const versionSchema = z.string().transform(Number).pipe(z.number().int().min(0));
-  const parsedV1 = versionSchema.safeParse(v1Param);
-  const parsedV2 = versionSchema.safeParse(v2Param);
+    const versionSchema = z.string().transform(Number).pipe(z.number().int().min(0));
+    const parsedV1 = versionSchema.safeParse(v1Param);
+    const parsedV2 = versionSchema.safeParse(v2Param);
 
-  if (!parsedV1.success || !parsedV2.success) {
-    return apiError('Invalid version numbers (v1, v2) provided.', 400);
-  }
+    if (!parsedV1.success || !parsedV2.success) {
+        return apiError('Invalid version numbers (v1, v2) provided.', 400);
+    }
 
-  const v1 = parsedV1.data;
-  const v2 = parsedV2.data;
+    const v1 = parsedV1.data;
+    const v2 = parsedV2.data;
 
-  // Fetch both versions
-  const { data: versions, error: fetchVersionsError } = await adminClient
-    .from('quotation_versions')
-    .select('*')
-    .eq('quotation_id', id)
-    .in('version_number', [v1, v2]);
+    // Fetch both versions
+    const { data: versions, error: fetchVersionsError } = await adminClient
+        .from('quotation_versions')
+        .select('*')
+        .eq('quotation_id', id)
+        .in('version_number', [v1, v2]);
 
-  if (fetchVersionsError) {
-    console.error('Error fetching quotation versions:', fetchVersionsError);
-    return apiError('Failed to fetch quotation versions for comparison', 500);
-  }
+    if (fetchVersionsError) {
+        console.error('Error fetching quotation versions:', fetchVersionsError);
+        return apiError('Failed to fetch quotation versions for comparison', 500);
+    }
 
-  const version1 = versions?.find(v => v.version_number === v1);
-  const version2 = versions?.find(v => v.version_number === v2);
+    const version1 = versions?.find(v => v.version_number === v1);
+    const version2 = versions?.find(v => v.version_number === v2);
 
-  if (!version1 || !version2) {
-    return apiError('One or both specified quotation versions not found.', 404);
-  }
+    if (!version1 || !version2) {
+        return apiError('One or both specified quotation versions not found.', 404);
+    }
 
-  // Generate diff
-  const diff = {
-    quotation_data: generateJsonDiff(version1.quotation_data, version2.quotation_data),
-    line_items: generateJsonDiff(version1.line_items, version2.line_items, 'id'), // Assuming line items have an 'id'
-    terms_conditions: generateJsonDiff(version1.terms_conditions, version2.terms_conditions, 'term_id'), // Assuming terms have a 'term_id'
-  };
+    // Generate diff
+    const diff = {
+        quotation_data: generateJsonDiff(version1.quotation_data, version2.quotation_data),
+        line_items: generateJsonDiff(version1.line_items, version2.line_items, 'id'), // Assuming line items have an 'id'
+        terms_conditions: generateJsonDiff(version1.terms_conditions, version2.terms_conditions, 'term_id'), // Assuming terms have a 'term_id'
+    };
 
-  return apiSuccess({
-    version1: {
-      version_number: version1.version_number,
-      version_label: version1.version_label,
-      changed_at: version1.changed_at,
-      changed_by: version1.changed_by,
-    },
-    version2: {
-      version_number: version2.version_number,
-      version_label: version2.version_label,
-      changed_at: version2.changed_at,
-      changed_by: version2.changed_by,
-    },
-    diff: diff,
-  });
+    return apiSuccess({
+        version1: {
+            version_number: version1.version_number,
+            version_label: version1.version_label,
+            changed_at: version1.changed_at,
+            changed_by: version1.changed_by,
+        },
+        version2: {
+            version_number: version2.version_number,
+            version_label: version2.version_label,
+            changed_at: version2.changed_at,
+            changed_by: version2.changed_by,
+        },
+        diff: diff,
+    });
 }

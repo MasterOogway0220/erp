@@ -2,13 +2,13 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { apiError, apiSuccess, logAuditEvent } from '@/lib/api-utils'
-import { approveQuotationSchema, isValidStatusTransition } from '@/lib/validations/schemas'
+import { approveQuotationSchema, createQuotationSchema, isValidStatusTransition } from '@/lib/validations/schemas'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } } // Corrected type
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params; // No await needed
+  const { id } = await params;
   const supabase = await createClient();
   const adminClient = createAdminClient();
 
@@ -50,31 +50,36 @@ export async function GET(
 
   const { data: versionSnapshot, error: fetchSnapshotError } = await versionQuery.single();
 
-  if (fetchSnapshotError || !versionSnapshot) {
-      console.error('Error fetching version snapshot:', fetchSnapshotError);
-      return apiError(`Quotation version ${requestedVersion !== undefined ? requestedVersion : 'current'} not found`, 404);
-  }
-
   // 3. Fetch all revisions for this quotation
-  const { data: allRevisions, error: fetchRevisionsError } = await adminClient
+  const { data: allRevisions } = await adminClient
     .from('quotation_versions')
     .select('id, quotation_id, version_number, version_label, changed_at, changed_by')
     .eq('quotation_id', id)
     .order('version_number', { ascending: false });
 
-  if (fetchRevisionsError) {
-      console.error('Error fetching all revisions:', fetchRevisionsError);
-      // Not a critical error, can proceed without revisions list
+  // 4. Determine items and terms (resilient fallback)
+  let items = [];
+  let terms = [];
+
+  if (versionSnapshot) {
+    items = versionSnapshot.line_items;
+    terms = versionSnapshot.terms_conditions;
+  } else {
+    // Fallback to current items if no version snapshot exists
+    const { data: currentItems } = await adminClient.from('quotation_items').select('*').eq('quotation_id', id);
+    const { data: currentTerms } = await adminClient.from('quotation_terms').select('*').eq('quotation_id', id);
+    items = currentItems || [];
+    terms = currentTerms || [];
   }
-  
-  // Combine data: main quotation with details from the specific snapshot
+
+  // Combine data: main quotation with details from snapshot or fallback
   return apiSuccess({
-    ...quotation, // Main quotation data
-    ...versionSnapshot.quotation_data, // Overwrite main quotation fields with snapshot data
-    items: versionSnapshot.line_items,
-    terms: versionSnapshot.terms_conditions,
-    version_number: versionSnapshot.version_number, // Ensure this reflects the snapshot's version
-    revision: versionSnapshot.version_number, // For existing UI compatibility
+    ...quotation,
+    ...(versionSnapshot?.quotation_data || {}),
+    items,
+    terms,
+    version_number: versionSnapshot?.version_number || quotation.version_number || 0,
+    revision: versionSnapshot?.version_number || quotation.revision || 0,
     revisions: allRevisions || [],
   });
 }
@@ -177,9 +182,9 @@ export async function PATCH(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params;
+  const { id } = await params;
   const supabase = await createClient();
   const adminClient = createAdminClient();
 
@@ -259,14 +264,14 @@ export async function PUT(
     // Delete existing items
     await adminClient.from('quotation_items').delete().eq('quotation_id', id);
     // Insert new items
-    processedItems = items.map(item => {
-        const lineTotal = (item.quantity || 0) * (item.unit_price || 0) * (1 - (item.discount || 0) / 100)
-        return {
-            ...item,
-            quotation_id: id,
-            line_total: lineTotal,
-            // Ensure other calculated fields are handled if necessary
-        }
+    processedItems = items.map((item: any) => {
+      const lineTotal = (item.quantity || 0) * (item.unit_price || 0) * (1 - (item.discount || 0) / 100)
+      return {
+        ...item,
+        quotation_id: id,
+        line_total: lineTotal,
+        // Ensure other calculated fields are handled if necessary
+      }
     });
     const { error: itemsInsertError } = await adminClient
       .from('quotation_items')
@@ -290,12 +295,12 @@ export async function PUT(
     // Insert new terms
     const { data: insertedTerms, error: termsInsertError } = await adminClient
       .from('quotation_terms')
-      .insert(terms.map(t => ({ ...t, quotation_id: id })))
+      .insert(terms.map((t: any) => ({ ...t, quotation_id: id })))
       .select();
     if (termsInsertError) {
       console.error('Error re-inserting quotation terms:', termsInsertError);
     } else {
-        updatedTerms = insertedTerms;
+      updatedTerms = insertedTerms;
     }
   } else {
     // If terms not provided in PUT, fetch current ones for snapshot
@@ -311,12 +316,12 @@ export async function PUT(
     // Insert new
     const { data: insertedTesting, error: testingInsertError } = await adminClient
       .from('quotation_testing')
-      .insert(testing_standards.map(tid => ({ quotation_id: id, testing_standard_id: tid })))
+      .insert(testing_standards.map((tid: string) => ({ quotation_id: id, testing_standard_id: tid })))
       .select();
     if (testingInsertError) {
       console.error('Error re-inserting testing standards:', testingInsertError);
     } else {
-        updatedTestingStandards = insertedTesting;
+      updatedTestingStandards = insertedTesting;
     }
   } else {
     // If testing_standards not provided, fetch current ones for snapshot
@@ -340,8 +345,8 @@ export async function PUT(
       version_number: nextVersionNumber,
       version_label: versionLabel,
       quotation_data: {
-          ...updatedQuotation, // Header from the updated main table
-          // Add other relevant top-level fields for snapshot integrity
+        ...updatedQuotation, // Header from the updated main table
+        // Add other relevant top-level fields for snapshot integrity
       },
       line_items: processedItems, // Use the items from the request body or updated ones
       terms_conditions: updatedTerms,

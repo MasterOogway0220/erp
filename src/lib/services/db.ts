@@ -527,12 +527,12 @@ export const salesOrdersService = {
       return { data: null, error: new Error('Quotation must be approved to create Sales Order') }
     }
 
-    const so_number = await generateDocumentNumber('SO')
+    const order_number = await generateDocumentNumber('SO')
 
     const { data: soData, error: soError } = await supabase
       .from('sales_orders')
       .insert({
-        so_number,
+        order_number,
         quotation_id: quotation.id,
         customer_id: quotation.customer_id,
         customer_po_number: order.customer_po_number,
@@ -777,7 +777,7 @@ export const invoicesService = {
       .select(`
         *,
         customer:customers(id, name),
-        sales_order:sales_orders(id, so_number),
+        sales_order:sales_orders(id, order_number),
         items:invoice_items(
           *,
           product:products(id, name, code)

@@ -3,7 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { apiError, apiSuccess, logAuditEvent } from '@/lib/api-utils'
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params
     const supabase = await createClient()
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       ),
       invoices(*)
     `)
-        .eq('id', params.id)
+        .eq('id', id)
         .single()
 
     if (error) {
@@ -35,7 +36,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     return apiSuccess(data)
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params
     const supabase = await createClient()
     const adminClient = createAdminClient()
 
@@ -50,7 +52,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const { data: current, error: fetchError } = await adminClient
         .from('dispatches')
         .select('status')
-        .eq('id', params.id)
+        .eq('id', id)
         .single()
 
     if (fetchError || !current) {
@@ -64,7 +66,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
             remarks: remarks || null,
             updated_at: new Date().toISOString()
         })
-        .eq('id', params.id)
+        .eq('id', id)
         .select()
         .single()
 
@@ -72,7 +74,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         return apiError(error.message)
     }
 
-    await logAuditEvent('dispatches', params.id, 'STATUS_CHANGE', current.status, status, user.id)
+    await logAuditEvent('dispatches', id, 'STATUS_CHANGE', current.status, status, user.id)
 
     return apiSuccess(data)
 }

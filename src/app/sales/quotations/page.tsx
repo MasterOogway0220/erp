@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { DataTablePagination } from "@/components/DataTablePagination"
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-800",
@@ -41,14 +42,20 @@ export default function QuotationsPage() {
   const [error, setError] = useState("")
   const [showHistory, setShowHistory] = useState(false)
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+
   useEffect(() => {
     fetchQuotations()
-  }, [])
+  }, [currentPage, pageSize])
 
   const fetchQuotations = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/quotations')
+      const response = await fetch(`/api/quotations?page=${currentPage}&pageSize=${pageSize}`)
       const result = await response.json()
 
       if (response.ok) {
@@ -77,6 +84,11 @@ export default function QuotationsPage() {
           status: q.status,
           createdAt: q.created_at?.split('T')[0]
         })) || [])
+
+        if (result.pagination) {
+          setTotalPages(result.pagination.totalPages)
+          setTotalCount(result.pagination.totalCount)
+        }
       } else {
         setError(result.error || 'Failed to fetch quotations')
       }
@@ -166,13 +178,14 @@ export default function QuotationsPage() {
         )}
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {showHistory ? "All Quotations (History)" : "Active Quotations"} ({filteredQuotations.length})
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base font-medium">
+              {showHistory ? "All Quotations (History)" : "Active Quotations"} ({totalCount})
             </CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
+              {/* ... table headers ... */}
               <TableHeader>
                 <TableRow>
                   <TableHead>Quotation No.</TableHead>
@@ -274,6 +287,12 @@ export default function QuotationsPage() {
                 )}
               </TableBody>
             </Table>
+
+            <DataTablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
           </CardContent>
         </Card>
       </div>

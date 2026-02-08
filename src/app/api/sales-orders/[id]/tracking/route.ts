@@ -4,7 +4,7 @@ import { apiError, apiSuccess } from '@/lib/api-utils'
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     const { id: salesOrderId } = await params
     const supabase = await createClient()

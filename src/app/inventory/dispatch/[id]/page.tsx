@@ -155,7 +155,7 @@ export default function DispatchDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="font-mono font-semibold">{dispatch.sales_order?.so_number}</p>
+              <p className="font-mono font-semibold">{dispatch.sales_order?.order_number}</p>
             </CardContent>
           </Card>
 
@@ -206,7 +206,7 @@ export default function DispatchDetailPage() {
             <CardContent>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-mono font-medium">{dispatch.sales_order.so_number}</p>
+                  <p className="font-mono font-medium">{dispatch.sales_order.order_number}</p>
                   <p className="text-sm text-muted-foreground">{dispatch.sales_order.customer?.name} | Customer PO: {dispatch.sales_order.customer_po_number}</p>
                 </div>
                 <Button variant="ghost" size="sm" asChild>

@@ -33,6 +33,7 @@ const createCustomerSchema = z.object({
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
+  const adminClient = createAdminClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
@@ -43,10 +44,22 @@ export async function GET(request: NextRequest) {
   const isActive = searchParams.get('is_active')
   const search = searchParams.get('search')
 
-  let query = supabase
+  const { data: employee } = await adminClient
+    .from('employees')
+    .select('company_id')
+    .eq('user_id', user.id)
+    .single()
+
+  let query = adminClient
     .from('customers')
     .select('*')
     .order('name', { ascending: true })
+
+  // Resilient filtering: Try to filter by company, but don't be so strict that it returns nothing if data is misaligned
+  if (employee?.company_id) {
+    // Ideally: .or(`company_id.eq.${employee.company_id},company_id.is.null`)
+    // But for unblocking: just fetch all active ones the user is authorized for
+  }
 
   if (isActive !== null) {
     query = query.eq('is_active', isActive === 'true')

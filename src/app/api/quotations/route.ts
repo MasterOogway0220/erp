@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { apiError, apiSuccess, generateDocumentNumber, logAuditEvent } from '@/lib/api-utils'
+import { apiError, apiSuccess, apiPaginatedSuccess, generateDocumentNumber, logAuditEvent } from '@/lib/api-utils'
 import { createQuotationSchema, isValidStatusTransition } from '@/lib/validations/schemas'
 
 export async function GET(request: NextRequest) {
@@ -16,6 +16,15 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status')
   const customerId = searchParams.get('customer_id')
 
+  // Pagination & Sorting Params
+  const page = parseInt(searchParams.get('page') || '1')
+  const pageSize = parseInt(searchParams.get('pageSize') || '10')
+  const sortBy = searchParams.get('sortBy') || 'created_at'
+  const sortOrder = searchParams.get('sortOrder') || 'desc'
+
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+
   let query = supabase
     .from('quotations')
     .select(`
@@ -23,8 +32,9 @@ export async function GET(request: NextRequest) {
       customer:customers(id, name),
       enquiry:enquiries(id, enquiry_number),
       items:quotation_items(*, product:products(id, name, code))
-    `)
-    .order('created_at', { ascending: false })
+    `, { count: 'exact' })
+    .order(sortBy, { ascending: sortOrder === 'asc' })
+    .range(from, to)
 
   if (status) {
     query = query.eq('status', status)
@@ -33,15 +43,22 @@ export async function GET(request: NextRequest) {
     query = query.eq('customer_id', customerId)
   }
 
-  const { data, error } = await query
+  const { data, error, count } = await query
 
   if (error) {
     console.error('Error fetching quotations:', error)
     return apiError(error.message)
   }
 
-  console.log(`Fetched ${data?.length || 0} quotations. Status filter: ${status || 'none'}`)
-  return apiSuccess(data)
+  const totalCount = count || 0
+  const totalPages = Math.ceil(totalCount / pageSize)
+
+  return apiPaginatedSuccess(data, {
+    page,
+    pageSize,
+    totalCount,
+    totalPages
+  })
 }
 
 export async function POST(request: NextRequest) {
@@ -139,7 +156,7 @@ export async function POST(request: NextRequest) {
       unit_price: item.unit_price,
       discount_percent: item.discount || 0,
       line_total: lineTotal,
-      uom_id: item.uom_id,
+      uom_id: item.uom_id || null,
       size: item.size,
       schedule: item.schedule,
       wall_thickness: item.wall_thickness,
@@ -180,7 +197,7 @@ export async function POST(request: NextRequest) {
       port_of_loading_id,
       port_of_discharge_id,
       vessel_name,
-      status: 'draft',
+      status: validation.data.status || 'draft',
       remarks,
       created_by: user.id,
       company_id: employee?.company_id,
@@ -223,7 +240,7 @@ export async function POST(request: NextRequest) {
     if (termsError) {
       console.error('Error inserting terms:', termsError)
     } else {
-        insertedTerms = insertedData;
+      insertedTerms = insertedData;
     }
   }
 
@@ -243,7 +260,7 @@ export async function POST(request: NextRequest) {
     if (testingError) {
       console.error('Error inserting testing standards:', testingError)
     } else {
-        insertedTestingStandards = insertedData;
+      insertedTestingStandards = insertedData;
     }
   }
 
@@ -255,33 +272,33 @@ export async function POST(request: NextRequest) {
       version_number: 0,
       version_label: 'Rev.00',
       quotation_data: { // Snapshot of quotation header
-          quotation_number: quotation.quotation_number,
-          customer_id: quotation.customer_id,
-          buyer_id: quotation.buyer_id,
-          enquiry_id: quotation.enquiry_id,
-          project_name: quotation.project_name,
-          subtotal: quotation.subtotal,
-          tax_amount: quotation.tax_amount,
-          total_amount: quotation.total_amount,
-          currency: quotation.currency,
-          exchange_rate: quotation.exchange_rate,
-          valid_until: quotation.valid_until,
-          validity_days: quotation.validity_days,
-          quotation_type: quotation.quotation_type,
-          parent_quotation_id: quotation.parent_quotation_id,
-          packing_charges: quotation.packing_charges,
-          freight_charges: quotation.freight_charges,
-          other_charges: quotation.other_charges,
-          total_weight: quotation.total_weight,
-          port_of_loading_id: quotation.port_of_loading_id,
-          port_of_discharge_id: quotation.port_of_discharge_id,
-          vessel_name: quotation.vessel_name,
-          status: quotation.status,
-          remarks: quotation.remarks,
-          created_by: quotation.created_by,
-          company_id: quotation.company_id,
-          created_at: quotation.created_at,
-          // Add other relevant fields from the quotation table
+        quotation_number: quotation.quotation_number,
+        customer_id: quotation.customer_id,
+        buyer_id: quotation.buyer_id,
+        enquiry_id: quotation.enquiry_id,
+        project_name: quotation.project_name,
+        subtotal: quotation.subtotal,
+        tax_amount: quotation.tax_amount,
+        total_amount: quotation.total_amount,
+        currency: quotation.currency,
+        exchange_rate: quotation.exchange_rate,
+        valid_until: quotation.valid_until,
+        validity_days: quotation.validity_days,
+        quotation_type: quotation.quotation_type,
+        parent_quotation_id: quotation.parent_quotation_id,
+        packing_charges: quotation.packing_charges,
+        freight_charges: quotation.freight_charges,
+        other_charges: quotation.other_charges,
+        total_weight: quotation.total_weight,
+        port_of_loading_id: quotation.port_of_loading_id,
+        port_of_discharge_id: quotation.port_of_discharge_id,
+        vessel_name: quotation.vessel_name,
+        status: quotation.status,
+        remarks: quotation.remarks,
+        created_by: quotation.created_by,
+        company_id: quotation.company_id,
+        created_at: quotation.created_at,
+        // Add other relevant fields from the quotation table
       },
       line_items: processedItems,
       terms_conditions: insertedTerms,
@@ -291,11 +308,11 @@ export async function POST(request: NextRequest) {
       is_current: true,
     });
 
-    if (versionError) {
-        console.error('Error creating initial quotation version:', versionError);
-        // Consider rolling back the quotation creation if version snapshot is critical
-        // For now, just log the error.
-    }
+  if (versionError) {
+    console.error('Error creating initial quotation version:', versionError);
+    // Consider rolling back the quotation creation if version snapshot is critical
+    // For now, just log the error.
+  }
 
   // Record Pricing History (for items with product_id)
   const historyRecords = items.filter(i => i.product_id).map(i => ({

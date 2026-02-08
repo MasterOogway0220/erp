@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       *,
       sales_order:sales_orders(
         id,
-        so_number,
+        order_number,
         customer_po_number,
         customer:customers(id, name)
       ),
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
         .order('created_at', { ascending: false })
 
     if (soNumber) {
-        query = query.eq('sales_order.so_number', soNumber)
+        query = query.eq('sales_order.order_number', soNumber)
     }
     if (customerPO) {
         query = query.eq('sales_order.customer_po_number', customerPO)

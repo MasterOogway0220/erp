@@ -3,7 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { apiError, apiSuccess, logAuditEvent } from '@/lib/api-utils'
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params
     const supabase = await createClient()
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       ),
       receipts:payment_receipts(*)
     `)
-        .eq('id', params.id)
+        .eq('id', id)
         .single()
 
     if (error) {
@@ -34,7 +35,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     return apiSuccess(data)
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params
     const supabase = await createClient()
     const adminClient = createAdminClient()
 
@@ -49,7 +51,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const { data: current, error: fetchError } = await adminClient
         .from('invoices')
         .select('status, paid_amount')
-        .eq('id', params.id)
+        .eq('id', id)
         .single()
 
     if (fetchError || !current) {
@@ -69,7 +71,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const { data, error } = await adminClient
         .from('invoices')
         .update(updates)
-        .eq('id', params.id)
+        .eq('id', id)
         .select()
         .single()
 
@@ -78,7 +80,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     if (status && status !== current.status) {
-        await logAuditEvent('invoices', params.id, 'STATUS_CHANGE', current.status, status, user.id)
+        await logAuditEvent('invoices', id, 'STATUS_CHANGE', current.status, status, user.id)
     }
 
     return apiSuccess(data)

@@ -222,7 +222,7 @@ function NewInvoiceForm() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Sales Order:</span>
-                    <span className="font-mono font-medium">{relatedSO.so_number}</span>
+                    <span className="font-mono font-medium">{relatedSO.order_number}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Customer:</span>

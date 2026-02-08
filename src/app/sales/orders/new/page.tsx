@@ -218,6 +218,19 @@ function SalesOrderForm() {
   const calculateTotal = () => items.reduce((sum, i) => sum + i.amount, 0)
 
   const handleSubmit = async () => {
+    console.log('handleSubmit - Current customerId:', customerId);
+    console.log('handleSubmit - Current buyerId:', buyerId);
+
+    if (!customerId) {
+      console.warn('handleSubmit - customerId is missing');
+      setError("Customer is required")
+      return
+    }
+    if (!buyerId && buyers.length > 0) {
+      console.warn('handleSubmit - buyerId is missing but buyers are available');
+      setError("Buyer contact is required")
+      return
+    }
     if (!poNumber || !poDate) {
       setError("Customer PO Number and Date are mandatory")
       return
@@ -228,7 +241,6 @@ function SalesOrderForm() {
 
     try {
       const payload = {
-        company_id: "c4a7e946-5e58-45f8-b40b-74116c944111", // Hardcoded for now, or get from context
         customer_id: customerId,
         buyer_id: buyerId,
         quotation_id: quotationId || null,
@@ -306,7 +318,11 @@ function SalesOrderForm() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Customer *</Label>
-                  <Select value={customerId} onValueChange={setCustomerId} disabled={!!quotationId}>
+                  <Select
+                    value={customerId}
+                    onValueChange={setCustomerId}
+                    disabled={!!quotationId && !!customerId}
+                  >
                     <SelectTrigger><SelectValue placeholder="Select Customer" /></SelectTrigger>
                     <SelectContent>
                       {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -315,10 +331,13 @@ function SalesOrderForm() {
                 </div>
                 <div className="space-y-2">
                   <Label>Buyer *</Label>
-                  <Select value={buyerId} onValueChange={setBuyerId}>
-                    <SelectTrigger><SelectValue placeholder="Select Buyer" /></SelectTrigger>
+                  <Select
+                    value={buyerId}
+                    onValueChange={setBuyerId}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select Buyer Contact" /></SelectTrigger>
                     <SelectContent>
-                      {buyers.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                      {buyers.map(b => <SelectItem key={b.id} value={b.id}>{b.buyer_name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>

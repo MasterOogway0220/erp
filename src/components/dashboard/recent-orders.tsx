@@ -18,7 +18,7 @@ const statusDotColors: Record<string, string> = {
 
 interface SalesOrder {
   id: string
-  so_number: string
+  order_number: string
   customer: { name: string }
   total_amount: number
   currency: string
@@ -83,11 +83,11 @@ export function RecentOrders() {
                 >
                   <div className="flex items-center gap-4">
                     <div className="h-10 w-10 rounded-xl bg-muted/30 flex items-center justify-center font-black text-xs text-muted-foreground group-hover/item:bg-primary/10 group-hover/item:text-primary transition-colors">
-                      {order.so_number.slice(-2)}
+                      {order.order_number.slice(-2)}
                     </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-black text-sm tracking-tight">{order.so_number}</span>
+                        <span className="font-black text-sm tracking-tight">{order.order_number}</span>
                         <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-muted/30">
                           <div className={`h-1.5 w-1.5 rounded-full ${statusDotColors[order.status] || "bg-slate-400"} animate-pulse`} />
                           <span className="text-[10px] font-black uppercase text-muted-foreground/80">

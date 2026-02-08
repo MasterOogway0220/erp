@@ -12,9 +12,9 @@ const buyerSchema = z.object({
   is_active: z.boolean().default(true)
 });
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const idSchema = z.string().uuid();
     const parsedId = idSchema.safeParse(id);
@@ -45,9 +45,9 @@ export async function GET(request: Request, { params }: { params: { id: string }
   }
 }
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const idSchema = z.string().uuid();
     const parsedId = idSchema.safeParse(id);
@@ -86,9 +86,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const idSchema = z.string().uuid();
     const parsedId = idSchema.safeParse(id);

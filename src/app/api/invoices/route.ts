@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       *,
       customer:customers(id, name),
       dispatch:dispatches(id, dispatch_number),
-      sales_order:sales_orders(id, so_number),
+      sales_order:sales_orders(id, order_number),
       items:invoice_items(*)
     `)
     .order('created_at', { ascending: false })

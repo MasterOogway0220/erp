@@ -6,7 +6,7 @@ import { createEmployeeSchema } from '@/lib/validations/schemas'
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     const supabase = await createClient()
     const { id } = await params
@@ -26,7 +26,7 @@ export async function GET(
 
 export async function PATCH(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     const supabase = await createClient()
     const adminClient = createAdminClient()
@@ -39,7 +39,7 @@ export async function PATCH(
     const validation = createEmployeeSchema.partial().safeParse(body)
 
     if (!validation.success) {
-        return apiError(validation.error.errors[0].message)
+        return apiError(validation.error.issues[0].message)
     }
 
     const { data: oldData } = await supabase

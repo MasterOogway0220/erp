@@ -19,9 +19,9 @@ const PINCODE_MAP: Record<string, { city: string, state: string }> = {
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { code: string } }
+    { params }: { params: Promise<{ code: string }> }
 ) {
-    const pincode = params.code
+    const { code: pincode } = await params
     const data = PINCODE_MAP[pincode] || { city: "", state: "" }
 
     return apiSuccess(data)

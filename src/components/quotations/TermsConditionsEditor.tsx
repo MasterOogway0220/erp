@@ -35,6 +35,10 @@ export function TermsConditionsEditor({ initialSelectedTerms, onTermsChange }: T
   const [error, setError] = useState<string | null>(null);
   const [nextCustomTermNumber, setNextCustomTermNumber] = useState(1); // For custom terms
 
+  // Track if we've already initialized from props
+  const [isInitialized, setIsInitialized] = useState(false);
+  const lastNotifiedRef = React.useRef<string>('');
+
   useEffect(() => {
     const fetchLibraryTerms = async () => {
       setLoading(true);
@@ -56,33 +60,47 @@ export function TermsConditionsEditor({ initialSelectedTerms, onTermsChange }: T
   }, []);
 
   useEffect(() => {
-    if (libraryTerms.length > 0 && initialSelectedTerms) {
-      // Initialize selectedTerms from initialSelectedTerms, ensuring we use libraryTerm's term_text if custom_text is empty
-      const mergedTerms = initialSelectedTerms.map(initTerm => {
-        const correspondingLibraryTerm = libraryTerms.find(lt => lt.id === initTerm.term_id);
-        return {
-          ...initTerm,
-          custom_text: initTerm.custom_text || correspondingLibraryTerm?.term_text || '',
-        };
-      });
-      setSelectedTerms(mergedTerms.sort((a,b) => a.display_order - b.display_order));
-      // Find the max term number for custom terms if any are present
-      const maxTermNum = Math.max(...libraryTerms.map(t => t.term_number), ...(initialSelectedTerms.map(t => t.display_order)));
-      setNextCustomTermNumber(maxTermNum + 1);
-    } else if (libraryTerms.length > 0) {
-        // If no initial selected terms, default to empty, but set custom term number
-        const maxTermNum = Math.max(...libraryTerms.map(t => t.term_number));
+    if (libraryTerms.length > 0 && !isInitialized) {
+      if (initialSelectedTerms && initialSelectedTerms.length > 0) {
+        const mergedTerms = initialSelectedTerms.map(initTerm => {
+          const correspondingLibraryTerm = libraryTerms.find(lt => lt.id === initTerm.term_id);
+          return {
+            ...initTerm,
+            custom_text: initTerm.custom_text || correspondingLibraryTerm?.term_text || '',
+          };
+        });
+        const sorted = mergedTerms.sort((a, b) => a.display_order - b.display_order);
+        setSelectedTerms(sorted);
+        lastNotifiedRef.current = JSON.stringify(sorted);
+        const maxTermNum = Math.max(
+          ...libraryTerms.map(t => t.term_number || 0),
+          ...(initialSelectedTerms.map(t => t.display_order || 0)),
+          0
+        );
         setNextCustomTermNumber(maxTermNum + 1);
+      } else {
+        const maxTermNum = Math.max(...libraryTerms.map(t => t.term_number || 0), 0);
+        setNextCustomTermNumber(maxTermNum + 1);
+        lastNotifiedRef.current = JSON.stringify([]);
+      }
+      setIsInitialized(true);
     }
-  }, [libraryTerms, initialSelectedTerms]);
+  }, [libraryTerms, initialSelectedTerms, isInitialized]);
 
-  // Notify parent component of changes
+  // Notify parent component of changes only when selectedTerms changes internally
+  // and is different from what we last notified
   useEffect(() => {
-    onTermsChange(selectedTerms);
-  }, [selectedTerms, onTermsChange]);
+    if (isInitialized) {
+      const currentStringified = JSON.stringify(selectedTerms);
+      if (currentStringified !== lastNotifiedRef.current) {
+        onTermsChange(selectedTerms);
+        lastNotifiedRef.current = currentStringified;
+      }
+    }
+  }, [selectedTerms, onTermsChange, isInitialized]);
 
 
-  const handleTermToggle = (termId: string, checked: boolean, libraryTerm?: Term) => {
+  const handleTermToggle = useCallback((termId: string, checked: boolean, libraryTerm?: Term) => {
     setSelectedTerms(prev => {
       let newTerms;
       if (checked) {
@@ -93,20 +111,20 @@ export function TermsConditionsEditor({ initialSelectedTerms, onTermsChange }: T
           custom_text: termText,
           display_order: libraryTerm?.term_number || nextCustomTermNumber,
         }];
-        if (!libraryTerm) setNextCustomTermNumber(prev => prev + 1); // Increment for next custom term
+        if (!libraryTerm) setNextCustomTermNumber(prevNum => prevNum + 1); // Increment for next custom term
       } else {
         // Remove term
         newTerms = prev.filter(t => t.term_id !== termId);
       }
-      return newTerms.sort((a,b) => a.display_order - b.display_order);
+      return newTerms.sort((a, b) => a.display_order - b.display_order);
     });
-  };
+  }, [nextCustomTermNumber]);
 
-  const handleTermTextChange = (termId: string, text: string) => {
+  const handleTermTextChange = useCallback((termId: string, text: string) => {
     setSelectedTerms(prev =>
       prev.map(t => (t.term_id === termId ? { ...t, custom_text: text } : t))
     );
-  };
+  }, []);
 
   const handleAddCustomTerm = useCallback(() => {
     const newCustomTermId = `custom-${Date.now()}`;
@@ -141,7 +159,7 @@ export function TermsConditionsEditor({ initialSelectedTerms, onTermsChange }: T
   return (
     <div className="space-y-4">
       <h3>Select Terms & Conditions</h3>
-      
+
       {allTermsForDisplay.map(libTerm => {
         const isSelected = selectedTerms.some(st => st.term_id === libTerm.id);
         const termToDisplay = selectedTerms.find(st => st.term_id === libTerm.id) || { custom_text: libTerm.term_text };
@@ -153,12 +171,12 @@ export function TermsConditionsEditor({ initialSelectedTerms, onTermsChange }: T
               checked={isSelected}
               onCheckedChange={(checked: boolean) => handleTermToggle(libTerm.id, checked, libTerm)}
             />
-            
+
             <div className="flex-1">
               <Label htmlFor={`term-${libTerm.id}`} className="font-medium cursor-pointer">
                 Term {libTerm.term_number}: {libTerm.category}
               </Label>
-              
+
               <Textarea
                 value={termToDisplay.custom_text}
                 onChange={(e) => handleTermTextChange(libTerm.id, e.target.value)}
@@ -171,7 +189,7 @@ export function TermsConditionsEditor({ initialSelectedTerms, onTermsChange }: T
           </div>
         );
       })}
-      
+
       <Button onClick={handleAddCustomTerm}>
         + Add Custom Term
       </Button>

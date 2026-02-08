@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     .from('dispatches')
     .select(`
       *,
-      sales_order:sales_orders(id, so_number, customer:customers(id, name)),
+      sales_order:sales_orders(id, order_number, customer:customers(id, name)),
       items:dispatch_items(*)
     `)
     .order('created_at', { ascending: false })

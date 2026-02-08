@@ -16,6 +16,7 @@ import { Plus, ArrowRight, Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { DataTablePagination } from "@/components/DataTablePagination"
 
 interface EnquiryItem {
   id: string
@@ -47,18 +48,28 @@ export default function EnquiriesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+
   useEffect(() => {
     fetchEnquiries()
-  }, [])
+  }, [currentPage, pageSize])
 
   const fetchEnquiries = async () => {
     try {
       setLoading(true)
       setError("")
-      const response = await fetch('/api/enquiries')
+      const response = await fetch(`/api/enquiries?page=${currentPage}&pageSize=${pageSize}`)
       const result = await response.json()
       if (response.ok) {
         setEnquiries(result.data || [])
+        if (result.pagination) {
+          setTotalPages(result.pagination.totalPages)
+          setTotalCount(result.pagination.totalCount)
+        }
       } else {
         setError(result.error || 'Failed to fetch enquiries')
       }
@@ -84,7 +95,7 @@ export default function EnquiriesPage() {
             </Button>
           </Link>
         </div>
-        
+
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -97,10 +108,12 @@ export default function EnquiriesPage() {
             </AlertDescription>
           </Alert>
         )}
-        
+
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">All Enquiries ({enquiries.length})</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base font-medium">
+              All Enquiries ({totalCount})
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -108,65 +121,73 @@ export default function EnquiriesPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Enquiry No.</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Items</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {enquiries.length === 0 ? (
+              <>
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        No enquiries found. Create your first enquiry.
-                      </TableCell>
+                      <TableHead>Enquiry No.</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Items</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ) : (
-                    enquiries.map((enquiry) => (
-                      <TableRow key={enquiry.id}>
-                        <TableCell className="font-mono font-medium">
-                          {enquiry.enquiry_number}
-                        </TableCell>
-                        <TableCell>{enquiry.customer?.name || 'Unknown'}</TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {enquiry.items?.map(item => (
-                            <div key={item.id} className="text-sm">
-                              {item.product?.name || 'Unknown'} x {item.quantity}
-                            </div>
-                          ))}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={statusColors[enquiry.status] || "bg-gray-100"}>
-                            {enquiry.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell">
-                          {new Date(enquiry.created_at).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="sm" asChild>
-                              <Link href={`/sales/enquiries/${enquiry.id}`}>View</Link>
-                            </Button>
-                            {enquiry.status === "open" && (
-                              <Button variant="ghost" size="sm" asChild>
-                                <Link href={`/sales/quotations/new?enquiryId=${enquiry.id}`}>
-                                  Quote <ArrowRight className="ml-1 h-3 w-3" />
-                                </Link>
-                              </Button>
-                            )}
-                          </div>
+                  </TableHeader>
+                  <TableBody>
+                    {enquiries.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          No enquiries found. Create your first enquiry.
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      enquiries.map((enquiry) => (
+                        <TableRow key={enquiry.id}>
+                          <TableCell className="font-mono font-medium">
+                            {enquiry.enquiry_number}
+                          </TableCell>
+                          <TableCell>{enquiry.customer?.name || 'Unknown'}</TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {enquiry.items?.map(item => (
+                              <div key={item.id} className="text-sm">
+                                {item.product?.name || 'Unknown'} x {item.quantity}
+                              </div>
+                            ))}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={statusColors[enquiry.status] || "bg-gray-100"}>
+                              {enquiry.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell">
+                            {new Date(enquiry.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button variant="ghost" size="sm" asChild>
+                                <Link href={`/sales/enquiries/${enquiry.id}`}>View</Link>
+                              </Button>
+                              {enquiry.status === "open" && (
+                                <Button variant="ghost" size="sm" asChild>
+                                  <Link href={`/sales/quotations/new?enquiryId=${enquiry.id}`}>
+                                    Quote <ArrowRight className="ml-1 h-3 w-3" />
+                                  </Link>
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+
+                <DataTablePagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                />
+              </>
             )}
           </CardContent>
         </Card>

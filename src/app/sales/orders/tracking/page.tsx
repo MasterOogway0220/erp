@@ -145,7 +145,7 @@ function OrderTrackingContent() {
                                     <div>
                                         <CardTitle className="text-lg">{item.product?.name || item.product_name}</CardTitle>
                                         <p className="text-sm text-gray-600 mt-1">
-                                            SO: {item.sales_order?.so_number} | Customer: {item.sales_order?.customer?.name}
+                                            SO: {item.sales_order?.order_number} | Customer: {item.sales_order?.customer?.name}
                                         </p>
                                     </div>
                                     <Badge className={getStatusColor(item.status)}>

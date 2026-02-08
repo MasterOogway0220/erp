@@ -5,37 +5,55 @@ import { apiError, apiSuccess, logAuditEvent } from '@/lib/api-utils'
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
-    const supabase = await createClient()
     const { id } = await params
+    const supabase = await createClient()
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
         return apiError('Unauthorized', 401)
     }
 
-    const { data: salesOrder, error } = await supabase
+    const { data, error } = await supabase
         .from('sales_orders')
         .select(`
       *,
-      customer:customers(*),
-      quotation:quotations(*),
-      items:sales_order_items(*, product:products(*))
+      customer:customers(id, name, email, phone, address),
+      buyer:buyers(id, buyer_name, designation, email, mobile),
+      quotation:quotations(id, quotation_number, quotation_date),
+      items:sales_order_items(
+        *,
+        product:products(id, name, code)
+      ),
+      dispatches:dispatches(
+        id,
+        dispatch_number,
+        dispatch_date,
+        status,
+        vehicle_number
+      ),
+      purchase_orders:purchase_orders(
+        id,
+        po_number,
+        po_date,
+        status,
+        vendor:vendors(id, name)
+      )
     `)
         .eq('id', id)
         .single()
 
     if (error) {
-        return apiError('Sales Order not found', 404)
+        return apiError('Sales order not found', 404)
     }
 
-    return apiSuccess(salesOrder)
+    return apiSuccess(data)
 }
 
 export async function PATCH(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     const supabase = await createClient()
     const adminClient = createAdminClient()

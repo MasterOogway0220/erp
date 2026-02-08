@@ -51,12 +51,20 @@ export async function POST(request: NextRequest) {
     // Get employee's company
     const { data: employee } = await supabase
         .from('employees')
-        .select('company_id')
+        .select('company_id, company:companies(code)')
         .eq('user_id', user.id)
         .single()
 
-    // Generate SO number
-    const orderNumber = await generateDocumentNumber('SO', employee?.company_id)
+    // 0. Strict Validation for Mandatory Fields (Fixes NOT NULL constraint violations)
+    if (!quotation.customer_id) return apiError('Source quotation is missing customer_id', 400);
+    // if (!quotation.buyer_id) return apiError('Source quotation is missing buyer_id', 400);
+    if (!employee?.company_id) return apiError('User company not found', 400);
+
+    // @ts-ignore
+    const company_code = employee.company?.code || 'STC';
+
+    // Generate SO number (Optimized)
+    const orderNumber = await generateDocumentNumber('SO', employee.company_id, company_code)
 
     // Calculate total from quotation
     const totalAmount = quotation.total_amount || quotation.items.reduce((sum: number, item: any) => sum + (item.line_total || 0), 0)
@@ -67,8 +75,8 @@ export async function POST(request: NextRequest) {
         .insert({
             order_number: orderNumber,
             quotation_id,
-            customer_id: quotation.customer_id,
-            buyer_id: quotation.buyer_id,
+            customer_id: quotation.customer_id || null,
+            buyer_id: quotation.buyer_id || null,
             customer_po_number,
             customer_po_date: customer_po_date || new Date().toISOString().split('T')[0],
             billing_address,
@@ -94,15 +102,15 @@ export async function POST(request: NextRequest) {
     const soItems = quotation.items.map((item: any) => ({
         sales_order_id: salesOrder.id,
         quotation_item_id: item.id,
-        product_id: item.product_id,
-        product_spec_id: item.product_spec_id,
-        pipe_size_id: item.pipe_size_id,
+        product_id: item.product_id || null,
+        product_spec_id: item.product_spec_id || null,
+        pipe_size_id: item.pipe_size_id || null,
         description: item.description,
         quantity: item.quantity,
         unit_price: item.unit_price,
         discount: item.discount,
         total_amount: item.line_total,
-        uom: item.uom_id,
+        uom: item.uom_id || null,
         hsn_code: item.hsn_code,
         status: 'pending',
         metadata: {
@@ -125,20 +133,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Update quotation status
-    await adminClient
-        .from('quotations')
-        .update({ status: 'accepted' })
-        .eq('id', quotation_id)
+    // Parallelize updates and logging
+    const updates = [
+        adminClient.from('quotations').update({ status: 'accepted' }).eq('id', quotation_id),
+        logAuditEvent('sales_orders', salesOrder.id, 'CREATE', null, salesOrder, user.id)
+    ]
 
-    // Update enquiry if linked
     if (quotation.enquiry_id) {
-        await adminClient
-            .from('enquiries')
-            .update({ status: 'closed' })
-            .eq('id', quotation.enquiry_id)
+        updates.push(
+            adminClient.from('enquiries').update({ status: 'closed' }).eq('id', quotation.enquiry_id)
+        )
     }
 
-    await logAuditEvent('sales_orders', salesOrder.id, 'CREATE', null, salesOrder, user.id)
+    await Promise.all(updates)
 
     return apiSuccess(salesOrder, 201)
 }

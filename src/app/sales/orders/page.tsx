@@ -16,6 +16,7 @@ import { Plus, Loader2, AlertCircle, Eye, FileText, Truck } from "lucide-react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { DataTablePagination } from "@/components/DataTablePagination"
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-800",
@@ -34,18 +35,28 @@ export default function SalesOrdersPage() {
   const [error, setError] = useState("")
   const [filter, setFilter] = useState("all") // all, open, completed
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+
   useEffect(() => {
     fetchOrders()
-  }, [])
+  }, [currentPage, pageSize])
 
   const fetchOrders = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/sales-orders')
+      const response = await fetch(`/api/sales-orders?page=${currentPage}&pageSize=${pageSize}`)
       const result = await response.json()
 
       if (response.ok) {
         setOrders(result.data || [])
+        if (result.pagination) {
+          setTotalPages(result.pagination.totalPages)
+          setTotalCount(result.pagination.totalCount)
+        }
       } else {
         setError(result.error || 'Failed to fetch sales orders')
       }
@@ -101,8 +112,8 @@ export default function SalesOrdersPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">
-                Recent Orders ({filteredOrders.length})
+              <CardTitle className="text-base font-medium">
+                All Orders ({totalCount})
               </CardTitle>
               <div className="flex gap-2">
                 <Button
@@ -192,6 +203,12 @@ export default function SalesOrdersPage() {
                 )}
               </TableBody>
             </Table>
+
+            <DataTablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
           </CardContent>
         </Card>
       </div>

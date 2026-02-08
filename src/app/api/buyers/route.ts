@@ -1,6 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { z } from 'zod'; // Assuming zod is installed and used for validation
+import { createClient } from '@/lib/supabase/server';
+import { apiError, apiSuccess } from '@/lib/api-utils';
+import { z } from 'zod';
 
 // Define the buyer schema based on the provided document
 const buyerSchema = z.object({
@@ -39,33 +41,34 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const customerIdSchema = z.string().uuid().optional();
-    const parsedCustomerId = customerIdSchema.safeParse(customer_id);
+    const supabase = await createClient();
+    const adminClient = createAdminClient();
 
-    if (!parsedCustomerId.success) {
-      return NextResponse.json({ error: 'Invalid customer_id format' }, { status: 400 });
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return apiError('Unauthorized', 401)
     }
 
-    const supabase = createAdminClient();
-    let query = supabase.from('buyers').select('*');
+    const { searchParams } = new URL(request.url);
+    const customerId = searchParams.get('customer_id');
 
-    if (parsedCustomerId.data) {
-      query = query.eq('customer_id', parsedCustomerId.data);
+    let query = adminClient.from('buyers').select('*');
+
+    if (customerId && customerId !== 'null') {
+      query = query.eq('customer_id', customerId);
     }
 
     const { data, error } = await query;
 
     if (error) {
-      console.error('Error fetching buyers:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return apiError(error.message);
     }
 
-    return NextResponse.json(data, { status: 200 });
+    return apiSuccess(data);
   } catch (error) {
     console.error('Unexpected error in GET /api/buyers:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return apiError('Internal Server Error', 500);
   }
 }

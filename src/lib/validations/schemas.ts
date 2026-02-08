@@ -1,67 +1,73 @@
 import { z } from 'zod'
 
+const nullableUuid = z.preprocess(
+  (val) => (val === "" ? null : val),
+  z.string().uuid().optional().nullable()
+)
+
 export const enquiryItemSchema = z.object({
-  product_id: z.string().uuid(),
+  product_id: nullableUuid,
   quantity: z.number().positive(),
-  specifications: z.string().optional(),
+  specifications: z.string().optional().nullable(),
 })
 
 export const createEnquirySchema = z.object({
   customer_id: z.string().uuid(),
-  buyer_id: z.string().uuid().optional(), // ISO 8.2.1: Track specific buyer contact
+  buyer_id: nullableUuid, // ISO 8.2.1: Track specific buyer contact
   items: z.array(enquiryItemSchema).min(1, "At least one item is required"),
-  remarks: z.string().optional(),
+  remarks: z.string().optional().nullable(),
 })
 
 
 export const quotationItemSchema = z.object({
-  product_id: z.string().uuid().optional().nullable(),
-  product_spec_id: z.string().uuid().optional().nullable(),
-  pipe_size_id: z.string().uuid().optional().nullable(),
-  product_name: z.string().optional(),
-  description: z.string().optional(),
+  product_id: nullableUuid,
+  product_spec_id: nullableUuid,
+  pipe_size_id: nullableUuid,
+  product_name: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
   quantity: z.number().positive(),
   unit_price: z.number().min(0),
   discount: z.number().min(0).max(100).default(0),
-  uom_id: z.string().uuid().optional(),
+  uom_id: nullableUuid,
   size: z.string().optional(),
   schedule: z.string().optional(),
   wall_thickness: z.number().optional(),
   weight_per_mtr: z.number().optional(),
   total_weight: z.number().optional(),
   auto_calculated_weight: z.number().optional(),
-  grade: z.string().optional(),
+  grade: z.string().optional().nullable(),
 })
 
 export const quotationTermSchema = z.object({
   term_id: z.string().uuid(),
-  custom_text: z.string().optional(),
+  custom_text: z.string().optional().nullable(),
   display_order: z.number().optional(),
 })
 
 export const createQuotationSchema = z.object({
-  enquiry_id: z.string().uuid().optional(),
+  enquiry_id: nullableUuid,
   customer_id: z.string().uuid(),
-  buyer_id: z.string().uuid().optional(),
-  project_name: z.string().optional(),
+  buyer_id: nullableUuid,
+  project_name: z.string().optional().nullable(),
   quotation_type: z.enum(['STANDARD', 'NON_STANDARD']).default('STANDARD'),
   items: z.array(quotationItemSchema).min(1, "At least one item is required"),
   currency: z.string().default('INR'),
   exchange_rate: z.number().optional().default(1),
-  valid_until: z.string().optional(),
+  valid_until: z.string().optional().nullable(),
   validity_days: z.number().optional().default(15),
-  remarks: z.string().optional(),
+  remarks: z.string().optional().nullable(),
   terms: z.array(quotationTermSchema).optional(),
-  parent_quotation_id: z.string().uuid().optional(),
+  parent_quotation_id: nullableUuid,
   packing_charges: z.number().min(0).optional().default(0),
   freight_charges: z.number().min(0).optional().default(0),
   other_charges: z.number().min(0).optional().default(0),
   total_weight: z.number().min(0).optional().default(0),
   // Export Fields
-  port_of_loading_id: z.string().uuid().optional().nullable(),
-  port_of_discharge_id: z.string().uuid().optional().nullable(),
+  port_of_loading_id: nullableUuid,
+  port_of_discharge_id: nullableUuid,
   vessel_name: z.string().optional().nullable(),
   testing_standards: z.array(z.string().uuid()).optional().default([]),
+  status: z.enum(['draft', 'pending_approval']).optional().default('draft'),
 })
   .refine((data) => {
     // Calculate total from items to ensure it's greater than 0
@@ -100,30 +106,30 @@ export const createQuotationSchema = z.object({
 
 export const approveQuotationSchema = z.object({
   approved: z.boolean(),
-  remarks: z.string().optional(),
+  remarks: z.string().optional().nullable(),
 })
 
 export const createSalesOrderSchema = z.object({
-  quotation_id: z.string().uuid(),
+  quotation_id: nullableUuid,
   customer_po_number: z.string().min(1, "Customer PO number is required"),
-  delivery_date: z.string(),
-  remarks: z.string().optional(),
+  delivery_date: z.string().optional().nullable(),
+  remarks: z.string().optional().nullable(),
 })
 
 export const purchaseOrderItemSchema = z.object({
-  product_id: z.string().uuid(),
+  product_id: nullableUuid,
   quantity: z.number().positive(),
   unit_price: z.number().min(0),
-  heat_number: z.string().optional(),
-  so_item_id: z.string().uuid().optional(),
+  heat_number: z.string().optional().nullable(),
+  so_item_id: nullableUuid,
 })
 
 export const createPurchaseOrderSchema = z.object({
-  vendor_id: z.string().uuid(),
-  sales_order_id: z.string().uuid().optional(),
+  vendor_id: nullableUuid,
+  sales_order_id: nullableUuid,
   items: z.array(purchaseOrderItemSchema).min(1, "At least one item is required"),
   delivery_date: z.string(),
-  remarks: z.string().optional(),
+  remarks: z.string().optional().nullable(),
 })
 
 export const grnItemSchema = z.object({
@@ -143,15 +149,15 @@ export const createGRNSchema = z.object({
 
 
 export const inspectionSchema = z.object({
-  grn_id: z.string().uuid(),
-  inventory_id: z.string().uuid(),
+  grn_id: nullableUuid,
+  inventory_id: nullableUuid,
   result: z.enum(['accepted', 'rejected', 'hold']),
   checklist: z.array(z.object({
     parameter: z.string(),
     specification: z.string(),
     actual_value: z.string(),
     result: z.enum(['pass', 'fail']),
-  })).optional(),
+  })).optional().nullable(),
   test_results: z.array(z.object({
     test_standard_id: z.string().uuid(),
     parameter_name: z.string(),
@@ -164,19 +170,19 @@ export const inspectionSchema = z.object({
 })
 
 export const dispatchItemSchema = z.object({
-  inventory_id: z.string().uuid(),
-  product_id: z.string().uuid(),
-  sales_order_item_id: z.string().uuid().optional(),
+  inventory_id: nullableUuid,
+  product_id: nullableUuid,
+  sales_order_item_id: nullableUuid,
   quantity: z.number().positive(),
   heat_number: z.string(),
 })
 
 export const createDispatchSchema = z.object({
-  sales_order_id: z.string().uuid(),
+  sales_order_id: nullableUuid,
   items: z.array(dispatchItemSchema).min(1, "At least one item is required"),
-  vehicle_number: z.string().optional(),
-  driver_name: z.string().optional(),
-  remarks: z.string().optional(),
+  vehicle_number: z.string().optional().nullable(),
+  driver_name: z.string().optional().nullable(),
+  remarks: z.string().optional().nullable(),
 })
 
 export const createInvoiceSchema = z.object({
@@ -194,11 +200,11 @@ export const createPaymentReceiptSchema = z.object({
   customer_id: z.string().uuid(),
   amount: z.number().positive(),
   payment_mode: z.enum(['cash', 'cheque', 'neft', 'rtgs', 'upi', 'wire']),
-  reference_number: z.string().optional(),
+  reference_number: z.string().optional().nullable(),
   receipt_date: z.string(),
-  bank_details: z.string().optional(),
-  remarks: z.string().optional(),
-  allocations: z.array(paymentAllocationSchema).min(1, "At least one allocation is required").optional(),
+  bank_details: z.string().optional().nullable(),
+  remarks: z.string().optional().nullable(),
+  allocations: z.array(paymentAllocationSchema).min(1, "At least one allocation is required").optional().nullable(),
 })
 
 export const statusTransitions: Record<string, Record<string, string[]>> = {
@@ -217,9 +223,14 @@ export const statusTransitions: Record<string, Record<string, string[]>> = {
     expired: [],
   },
   sales_order: {
-    open: ['in_progress', 'cancelled'],
-    in_progress: ['partial_dispatch', 'completed', 'cancelled'],
+    draft: ['open', 'cancelled'],
+    open: ['confirmed', 'cancelled'],
+    confirmed: ['processing', 'cancelled'],
+    processing: ['partial_dispatch', 'partially_dispatched', 'ready_for_dispatch', 'cancelled'],
+    ready_for_dispatch: ['dispatched', 'cancelled'],
     partial_dispatch: ['completed', 'cancelled'],
+    partially_dispatched: ['completed', 'cancelled'],
+    dispatched: ['completed'],
     completed: [],
     cancelled: [],
   },

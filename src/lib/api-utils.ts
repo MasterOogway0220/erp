@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export async function logAuditEvent(
   tableName: string,
   recordId: string,
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE',
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE' | 'AMENDMENT',
   oldData: Record<string, unknown> | null,
   newData: Record<string, unknown> | null,
   userId?: string
@@ -27,14 +27,17 @@ export async function logAuditEvent(
 
 export async function generateDocumentNumber(
   prefix: string,
-  companyId?: string
+  companyId?: string,
+  companyCode?: string
 ): Promise<string> {
   const supabase = createAdminClient()
   const year = new Date().getFullYear()
 
   // Get company code if provided
-  let companyCode = 'STC' // Default company code
-  if (companyId) {
+  let code = companyCode || 'STC' // Use provided code or default
+
+  // Only fetch if companyId is provided AND companyCode is NOT provided
+  if (companyId && !companyCode) {
     const { data: company } = await supabase
       .from('companies')
       .select('code')
@@ -42,11 +45,11 @@ export async function generateDocumentNumber(
       .single()
 
     if (company?.code) {
-      companyCode = company.code
+      code = company.code
     }
   }
 
-  const key = `${prefix}-${companyCode}-${year}`
+  const key = `${prefix}-${code}-${year}`
 
   const { data, error } = await supabase.rpc('get_next_sequence', {
     p_prefix: key
@@ -66,6 +69,19 @@ export function apiError(message: string, status: number = 400) {
 
 export function apiSuccess<T>(data: T, status: number = 200) {
   return NextResponse.json({ data }, { status })
+}
+
+export function apiPaginatedSuccess<T>(
+  data: T,
+  pagination: {
+    page: number
+    pageSize: number
+    totalCount: number
+    totalPages: number
+  },
+  status: number = 200
+) {
+  return NextResponse.json({ data, pagination }, { status })
 }
 
 export async function getUserFromRequest(request: Request) {

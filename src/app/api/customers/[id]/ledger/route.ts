@@ -4,8 +4,9 @@ import { apiError, apiSuccess } from '@/lib/api-utils'
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
+    const { id } = await params
     const supabase = await createClient()
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -17,7 +18,7 @@ export async function GET(
     const { data: customer, error: customerError } = await supabase
         .from('customers')
         .select('id, name, opening_balance, opening_balance_date')
-        .eq('id', params.id)
+        .eq('id', id)
         .single()
 
     if (customerError || !customer) {
@@ -28,14 +29,14 @@ export async function GET(
     const { data: invoices, error: invError } = await supabase
         .from('invoices')
         .select('id, invoice_number, invoice_date, total_amount, status')
-        .eq('customer_id', params.id)
+        .eq('customer_id', id)
         .order('invoice_date', { ascending: true })
 
     // Fetch all payments
     const { data: payments, error: payError } = await supabase
         .from('payment_receipts')
         .select('id, receipt_number, receipt_date, amount, payment_mode')
-        .eq('customer_id', params.id)
+        .eq('customer_id', id)
         .order('receipt_date', { ascending: true })
 
     if (invError || payError) {

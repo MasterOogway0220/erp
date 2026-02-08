@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { apiError, apiSuccess, generateDocumentNumber, logAuditEvent } from '@/lib/api-utils'
+import { apiError, apiSuccess, apiPaginatedSuccess, generateDocumentNumber, logAuditEvent } from '@/lib/api-utils'
 import { createEnquirySchema } from '@/lib/validations/schemas'
 
 export async function GET(request: NextRequest) {
@@ -16,16 +16,25 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status')
   const customerId = searchParams.get('customer_id')
 
+  // Pagination & Sorting Params
+  const page = parseInt(searchParams.get('page') || '1')
+  const pageSize = parseInt(searchParams.get('pageSize') || '10')
+  const sortBy = searchParams.get('sortBy') || 'created_at'
+  const sortOrder = searchParams.get('sortOrder') || 'desc'
+
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+
   let query = supabase
     .from('enquiries')
     .select(`
       *,
       customer:customers(id, name),
-      buyer:buyers(id, name, designation, email),
+      buyer:buyers(id, buyer_name, designation, email),
       items:enquiry_items(*, product:products(id, name, code))
-    `)
-    .order('created_at', { ascending: false })
-
+    `, { count: 'exact' })
+    .order(sortBy, { ascending: sortOrder === 'asc' })
+    .range(from, to)
 
   if (status) {
     query = query.eq('status', status)
@@ -34,13 +43,21 @@ export async function GET(request: NextRequest) {
     query = query.eq('customer_id', customerId)
   }
 
-  const { data, error } = await query
+  const { data, error, count } = await query
 
   if (error) {
     return apiError(error.message)
   }
 
-  return apiSuccess(data)
+  const totalCount = count || 0
+  const totalPages = Math.ceil(totalCount / pageSize)
+
+  return apiPaginatedSuccess(data, {
+    page,
+    pageSize,
+    totalCount,
+    totalPages
+  })
 }
 
 export async function POST(request: NextRequest) {
@@ -113,7 +130,7 @@ export async function POST(request: NextRequest) {
       remarks,
       created_by: user.id,
     })
-    .select()
+    .select('id, enquiry_number, customer_id, buyer_id, status, remarks, created_at')
     .single()
 
   if (enquiryError) {

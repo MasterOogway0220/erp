@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { apiError, apiSuccess } from '@/lib/api-utils'
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params
     const supabase = await createClient()
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         invoice:invoices(*)
       )
     `)
-        .eq('id', params.id)
+        .eq('id', id)
         .single()
 
     if (error) {
