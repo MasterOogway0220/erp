@@ -36,6 +36,14 @@ export const quotationItemSchema = z.object({
   total_weight: z.number().optional(),
   auto_calculated_weight: z.number().optional(),
   grade: z.string().optional().nullable(),
+  // New Technical Fields
+  tag_no: z.string().optional().nullable(),
+  dwg_no: z.string().optional().nullable(),
+  dimension_tolerance: z.string().optional().nullable(),
+  dm_type: z.string().optional().nullable(),
+  wt_type: z.string().optional().nullable(),
+  length_individual: z.number().optional().nullable(),
+  no_of_tubes: z.number().optional().nullable(),
 })
 
 export const quotationTermSchema = z.object({
@@ -48,8 +56,10 @@ export const createQuotationSchema = z.object({
   enquiry_id: nullableUuid,
   customer_id: z.string().uuid(),
   buyer_id: nullableUuid,
+  bank_detail_id: nullableUuid, // New field linking to company_bank_details
   project_name: z.string().optional().nullable(),
   quotation_type: z.enum(['STANDARD', 'NON_STANDARD']).default('STANDARD'),
+  market_type: z.enum(['DOMESTIC', 'EXPORT']).default('DOMESTIC'),
   items: z.array(quotationItemSchema).min(1, "At least one item is required"),
   currency: z.string().default('INR'),
   exchange_rate: z.number().optional().default(1),
@@ -66,6 +76,14 @@ export const createQuotationSchema = z.object({
   port_of_loading_id: nullableUuid,
   port_of_discharge_id: nullableUuid,
   vessel_name: z.string().optional().nullable(),
+  enquiry_reference: z.string().optional().nullable(),
+  attention: z.string().optional().nullable(),
+  incoterms: z.string().optional().nullable(),
+  material_origin: z.string().optional().nullable(),
+  tt_charges: z.number().optional().nullable(),
+  tpi_charges: z.number().optional().nullable(),
+  certification: z.string().optional().nullable(),
+  part_orders: z.string().optional().nullable(),
   testing_standards: z.array(z.string().uuid()).optional().default([]),
   status: z.enum(['draft', 'pending_approval']).optional().default('draft'),
 })
@@ -102,6 +120,16 @@ export const createQuotationSchema = z.object({
   }, {
     message: "Valid until date must be today or in the future",
     path: ["valid_until"]
+  })
+  .refine((data) => {
+    // Domestic quotations must be in INR
+    if (data.market_type === 'DOMESTIC') {
+      return data.currency === 'INR'
+    }
+    return true
+  }, {
+    message: "Domestic quotations must be in INR",
+    path: ["currency"]
   })
 
 export const approveQuotationSchema = z.object({

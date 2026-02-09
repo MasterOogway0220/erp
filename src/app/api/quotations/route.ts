@@ -95,7 +95,8 @@ export async function POST(request: NextRequest) {
     customer_id, enquiry_id, items, currency, valid_until, validity_days,
     remarks, quotation_type, buyer_id, project_name, terms, parent_quotation_id,
     port_of_loading_id, port_of_discharge_id, vessel_name, testing_standards,
-    exchange_rate
+    exchange_rate, market_type, bank_detail_id, attention, enquiry_reference,
+    incoterms, material_origin, tt_charges, tpi_charges, certification, part_orders
   } = validation.data
 
   // Get User's Company
@@ -164,6 +165,14 @@ export async function POST(request: NextRequest) {
       total_weight: item.total_weight,
       auto_calculated_weight: item.auto_calculated_weight,
       grade: item.grade,
+      // Technical Fields
+      tag_no: item.tag_no,
+      dwg_no: item.dwg_no,
+      dimension_tolerance: item.dimension_tolerance,
+      dm_type: item.dm_type,
+      wt_type: item.wt_type,
+      length_individual: item.length_individual,
+      no_of_tubes: item.no_of_tubes
     }
   })
 
@@ -176,8 +185,11 @@ export async function POST(request: NextRequest) {
       quotation_number: quotationNumber,
       customer_id,
       buyer_id,
+      bank_detail_id,
       enquiry_id,
       project_name,
+      enquiry_reference,
+      attention,
       subtotal,
       tax_amount: taxAmount,
       total_amount: totalAmount + (validation.data.packing_charges || 0) + (validation.data.freight_charges || 0) + (validation.data.other_charges || 0),
@@ -189,6 +201,7 @@ export async function POST(request: NextRequest) {
       revision: 0,
       is_latest_version: true,
       quotation_type,
+      market_type,
       parent_quotation_id,
       packing_charges: validation.data.packing_charges || 0,
       freight_charges: validation.data.freight_charges || 0,
@@ -197,6 +210,12 @@ export async function POST(request: NextRequest) {
       port_of_loading_id,
       port_of_discharge_id,
       vessel_name,
+      incoterms,
+      material_origin,
+      tt_charges,
+      tpi_charges,
+      certification,
+      part_orders,
       status: validation.data.status || 'draft',
       remarks,
       created_by: user.id,
@@ -285,6 +304,7 @@ export async function POST(request: NextRequest) {
         valid_until: quotation.valid_until,
         validity_days: quotation.validity_days,
         quotation_type: quotation.quotation_type,
+        market_type: quotation.market_type,
         parent_quotation_id: quotation.parent_quotation_id,
         packing_charges: quotation.packing_charges,
         freight_charges: quotation.freight_charges,
@@ -293,6 +313,15 @@ export async function POST(request: NextRequest) {
         port_of_loading_id: quotation.port_of_loading_id,
         port_of_discharge_id: quotation.port_of_discharge_id,
         vessel_name: quotation.vessel_name,
+        incoterms: quotation.incoterms,
+        material_origin: quotation.material_origin,
+        tt_charges: quotation.tt_charges,
+        tpi_charges: quotation.tpi_charges,
+        certification: quotation.certification,
+        part_orders: quotation.part_orders,
+        bank_detail_id: quotation.bank_detail_id,
+        attention: quotation.attention,
+        enquiry_reference: quotation.enquiry_reference,
         status: quotation.status,
         remarks: quotation.remarks,
         created_by: quotation.created_by,

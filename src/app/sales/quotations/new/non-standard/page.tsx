@@ -23,9 +23,9 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
-import { ArrowLeft, Plus, Trash2, AlertCircle, Loader2, Save } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, AlertCircle, Loader2, Save, CheckCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { TermsConditionsEditor } from "@/components/quotations/TermsConditionsEditor" // Import TermsConditionsEditor
+import { TermsConditionsEditor } from "@/components/quotations/TermsConditionsEditor"
 
 interface NonStandardLineItem {
     id: string
@@ -38,19 +38,21 @@ interface NonStandardLineItem {
 }
 
 interface SelectedQuotationTerm {
-  term_id: string
-  custom_text: string
-  display_order: number;
+    term_id: string
+    custom_text: string
+    display_order: number;
 }
 
 function NonStandardQuotationForm() {
     const router = useRouter()
     const searchParams = useSearchParams()
+    const marketType = searchParams.get("market") as "DOMESTIC" | "EXPORT" || "DOMESTIC"
     const enquiryId = searchParams.get("enquiryId")
 
     // Masters
     const [customers, setCustomers] = useState<any[]>([])
     const [buyers, setBuyers] = useState<any[]>([])
+    const [bankDetails, setBankDetails] = useState<any[]>([])
     const [uoms, setUoms] = useState<any[]>([])
     const [currencies, setCurrencies] = useState<any[]>([])
     const [ports, setPorts] = useState<any[]>([])
@@ -59,44 +61,43 @@ function NonStandardQuotationForm() {
     // Form State
     const [customerId, setCustomerId] = useState("")
     const [buyerId, setBuyerId] = useState("")
+    const [bankDetailId, setBankDetailId] = useState("")
     const [projectName, setProjectName] = useState("")
+    const [attention, setAttention] = useState("")
+    const [enquiryReference, setEnquiryReference] = useState("")
     const [date, setDate] = useState(new Date().toISOString().split('T')[0])
-    const [validityDays, setValidityDays] = useState(30)
-    const [currency, setCurrency] = useState("INR")
-    const [exchangeRate, setExchangeRate] = useState(1)
+    const [validityDays, setValidityDays] = useState(marketType === 'DOMESTIC' ? 15 : 30)
+    const [currency, setCurrency] = useState(marketType === 'DOMESTIC' ? "INR" : "USD")
+    const [exchangeRate, setExchangeRate] = useState(marketType === 'DOMESTIC' ? 1 : 83)
     const [portOfLoadingId, setPortOfLoadingId] = useState("")
     const [portOfDischargeId, setPortOfDischargeId] = useState("")
+    const [incoterms, setIncoterms] = useState("")
+    const [materialOrigin, setMaterialOrigin] = useState("India/Canada")
     const [selectedTesting, setSelectedTesting] = useState<string[]>([])
     const [items, setItems] = useState<NonStandardLineItem[]>([])
-    const [remarks, setRemarks] = useState("")
-    const [selectedQuotationTerms, setSelectedQuotationTerms] = useState<SelectedQuotationTerm[]>([]); // New state for selected terms
+    const [selectedQuotationTerms, setSelectedQuotationTerms] = useState<SelectedQuotationTerm[]>([]);
 
     // UI State
     const [loading, setLoading] = useState(false)
     const [dataLoading, setDataLoading] = useState(true)
     const [error, setError] = useState("")
-    const [showConfirm, setShowConfirm] = useState(false)
+    const [showConfirm, setShowConfirm] = useState<'draft' | 'approval' | false>(false)
 
     useEffect(() => {
         const fetchData = async () => {
             setDataLoading(true)
             try {
-                const [custRes, uomRes, currRes, portRes, testRes] = await Promise.all([
+                const [custRes, uomRes, currRes, portRes, testRes, bankRes] = await Promise.all([
                     fetch('/api/customers'),
                     fetch('/api/uom'),
                     fetch('/api/currencies'),
                     fetch('/api/ports'),
-                    fetch('/api/testing-standards')
-                    // fetch('/api/terms') // No longer needed
+                    fetch('/api/testing-standards'),
+                    fetch('/api/bank-details')
                 ])
 
-                const [custData, uomData, currData, portData, testData] = await Promise.all([
-                    custRes.json(),
-                    uomRes.json(),
-                    currRes.json(),
-                    portRes.json(),
-                    testRes.json()
-                    // termRes.json() // No longer needed
+                const [custData, uomData, currData, portData, testData, bankData] = await Promise.all([
+                    custRes.json(), uomRes.json(), currRes.json(), portRes.json(), testRes.json(), bankRes.json()
                 ])
 
                 setCustomers(custData.data || [])
@@ -104,6 +105,9 @@ function NonStandardQuotationForm() {
                 setCurrencies(currData.data || [])
                 setPorts(portData.data || [])
                 setTestingStandards(testData.data || [])
+                setBankDetails(bankData.data || [])
+
+                if (bankData.data?.length > 0) setBankDetailId(bankData.data[0].id)
 
                 if (enquiryId) {
                     const enqRes = await fetch(`/api/enquiries/${enquiryId}`)
@@ -111,8 +115,8 @@ function NonStandardQuotationForm() {
                     if (enqRes.ok && enqData.data) {
                         setCustomerId(enqData.data.customer_id)
                         setProjectName(enqData.data.project_name || "")
+                        setEnquiryReference(enqData.data.enquiry_no || "")
 
-                        // Map Items
                         const mappedItems: NonStandardLineItem[] = (enqData.data.items || []).map((i: any) => ({
                             id: Math.random().toString(36).substring(2, 9),
                             productName: i.product?.name || "New Product",
@@ -122,10 +126,7 @@ function NonStandardQuotationForm() {
                             amount: 0,
                             unit: "NOS"
                         }))
-
-                        if (mappedItems.length > 0) {
-                            setItems(mappedItems)
-                        }
+                        if (mappedItems.length > 0) setItems(mappedItems)
                     }
                 }
             } catch (err) {
@@ -164,279 +165,163 @@ function NonStandardQuotationForm() {
     const updateItem = (id: string, field: keyof NonStandardLineItem, value: any) => {
         setItems(items.map(item => {
             if (item.id !== id) return item
-
             const updated = { ...item, [field]: value }
-
             if (field === "quantity" || field === "unitPrice") {
                 updated.amount = (updated.quantity || 0) * (updated.unitPrice || 0)
             }
-
             return updated
         }))
     }
 
-    const removeItem = (id: string) => {
-        setItems(items.filter(i => i.id !== id))
-    }
-
+    const removeItem = (id: string) => setItems(items.filter(i => i.id !== id))
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0)
     const gst = subtotal * 0.18
     const total = subtotal + gst
 
     const handleSubmit = async () => {
-        setLoading(true)
-        setError("")
+        if (!customerId) { setError("Please select a customer"); return; }
+        setLoading(true); setError("");
         try {
+            const payload = {
+                status: showConfirm === 'approval' ? 'pending_approval' : 'draft',
+                customer_id: customerId,
+                buyer_id: buyerId || null,
+                bank_detail_id: bankDetailId || null,
+                project_name: projectName,
+                enquiry_reference: enquiryReference,
+                attention: attention,
+                quotation_date: date,
+                validity_days: validityDays,
+                quotation_type: "NON_STANDARD",
+                market_type: marketType,
+                currency, exchange_rate: exchangeRate,
+                incoterms, material_origin: materialOrigin,
+                port_of_loading_id: portOfLoadingId || null,
+                port_of_discharge_id: portOfDischargeId || null,
+                testing_standards: selectedTesting,
+                terms: selectedQuotationTerms,
+                items: items.map(item => ({
+                    product_name: item.productName,
+                    description: item.description,
+                    quantity: item.quantity,
+                    unit_price: item.unitPrice,
+                    uom_id: uoms.find(u => u.code === item.unit)?.id,
+                }))
+            }
             const response = await fetch("/api/quotations", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    customer_id: customerId,
-                    buyer_id: buyerId || null,
-                    enquiry_id: enquiryId || null,
-                    project_name: projectName,
-                    quotation_date: date,
-                    validity_days: validityDays,
-                    quotation_type: "NON_STANDARD",
-                    currency: currency,
-                    exchange_rate: exchangeRate,
-                    port_of_loading_id: portOfLoadingId || null,
-                    port_of_discharge_id: portOfDischargeId || null,
-                    testing_standards: selectedTesting,
-                    remarks: remarks,
-                    terms: selectedQuotationTerms.map(st => ({
-                      term_id: st.term_id,
-                      custom_text: st.custom_text,
-                      display_order: st.display_order
-                    })),
-                    items: items.map(item => ({
-                        product_name: item.productName,
-                        description: item.description,
-                        quantity: item.quantity,
-                        unit_price: item.unitPrice,
-                        uom_id: uoms.find(u => u.code === item.unit)?.id,
-                    }))
-                })
+                body: JSON.stringify(payload)
             })
-
             const result = await response.json()
-            if (!response.ok) throw new Error(result.error || "Failed to save quotation")
-
+            if (!response.ok) throw new Error(result.error)
             router.push(`/sales/quotations/${result.data.id}`)
-        } catch (err: any) {
-            setError(err.message)
-            setShowConfirm(false)
-        } finally {
-            setLoading(false)
-        }
+        } catch (err: any) { setError(err.message); setShowConfirm(false); } finally { setLoading(false); }
     }
 
-    if (dataLoading) {
-        return (
-            <div className="flex h-[400px] items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        )
-    }
+    if (dataLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin" /></div>
 
     return (
         <div className="space-y-6">
             <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" onClick={() => router.push('/sales/quotations/new')}>
-                    <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <h2 className="text-2xl font-bold tracking-tight">Non-Standard Quotation - New</h2>
+                <Button variant="ghost" onClick={() => router.push('/sales/quotations/new')}><ArrowLeft className="h-4 w-4 mr-2" /> Back</Button>
+                <h2 className="text-2xl font-bold">New {marketType} (Non-Std) Quotation</h2>
             </div>
-
-            {error && (
-                <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{error}</AlertDescription>
-                </Alert>
-            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card className="md:col-span-2">
-                    <CardHeader>
-                        <CardTitle className="text-sm font-medium">Header Information</CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CardHeader><CardTitle>Header Information</CardTitle></CardHeader>
+                    <CardContent className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Customer *</Label>
                             <Select value={customerId} onValueChange={setCustomerId}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select Customer" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                                </SelectContent>
+                                <SelectTrigger><SelectValue placeholder="Select Customer" /></SelectTrigger>
+                                <SelectContent>{customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label>Buyer / Contact Person</Label>
+                            <Label>Buyer / Contact</Label>
                             <Select value={buyerId} onValueChange={setBuyerId} disabled={!customerId}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select Buyer" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {buyers.map(b => <SelectItem key={b.id} value={b.id}>{b.buyer_name}</SelectItem>)}
-                                </SelectContent>
+                                <SelectTrigger><SelectValue placeholder="Select Buyer" /></SelectTrigger>
+                                <SelectContent>{buyers.map(b => <SelectItem key={b.id} value={b.id}>{b.buyer_name}</SelectItem>)}</SelectContent>
                             </Select>
                         </div>
-                        <div className="space-y-2">
-                            <Label>Project Name</Label>
-                            <Input value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="Project details" />
+                        <div className="space-y-2"><Label>Enquiry Ref</Label><Input value={enquiryReference} onChange={e => setEnquiryReference(e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Attention</Label><Input value={attention} onChange={e => setAttention(e.target.value)} /></div>
+                        <div className="space-y-2"><Label>Project</Label><Input value={projectName} onChange={e => setProjectName(e.target.value)} /></div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-2"><Label>Date</Label><Input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
+                            <div className="space-y-2"><Label>Validity</Label><Input type="number" value={validityDays} onChange={e => setValidityDays(parseInt(e.target.value))} /></div>
                         </div>
-                        {/* Additional header fields... */}
-                        <div className="space-y-2">
-                            <Label>Currency</Label>
-                            <Select value={currency} onValueChange={(v) => {
-                                setCurrency(v);
-                                const curr = currencies.find(c => c.code === v);
-                                if (v === 'INR') setExchangeRate(1);
-                                else if (v === 'USD') setExchangeRate(83);
-                            }}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Currency" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {currencies.map(c => <SelectItem key={c.id} value={c.code}>{c.code} - {c.name}</SelectItem>)}
-                                </SelectContent>
+                        <div className="col-span-2 space-y-2">
+                            <Label>Bank Details</Label>
+                            <Select value={bankDetailId} onValueChange={setBankDetailId}>
+                                <SelectTrigger><SelectValue placeholder="Select Bank" /></SelectTrigger>
+                                <SelectContent>{bankDetails.map(b => <SelectItem key={b.id} value={b.id}>{b.bank_name} - {b.account_no}</SelectItem>)}</SelectContent>
                             </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Exchange Rate</Label>
-                            <Input type="number" value={exchangeRate} onChange={e => setExchangeRate(parseFloat(e.target.value))} />
                         </div>
                     </CardContent>
                 </Card>
 
-                {/* Summary Card */}
-                <Card className="md:col-span-1">
-                    <CardHeader>
-                        <CardTitle className="text-sm font-medium">Summary</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                        <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Subtotal:</span>
-                            <span className="font-medium">{currency} {subtotal.toLocaleString()}</span>
+                <Card>
+                    <CardHeader><CardTitle>Commercial & Summary</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                        {marketType === 'EXPORT' && (
+                            <>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-1"><Label>Currency</Label><Select value={currency} onValueChange={setCurrency}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{currencies.map(c => <SelectItem key={c.id} value={c.code}>{c.code}</SelectItem>)}</SelectContent></Select></div>
+                                    <div className="space-y-1"><Label>Rate</Label><Input type="number" value={exchangeRate} onChange={e => setExchangeRate(parseFloat(e.target.value))} /></div>
+                                </div>
+                                <div className="space-y-1"><Label>Incoterms</Label><Input value={incoterms} onChange={e => setIncoterms(e.target.value)} placeholder="e.g. CIF Jebel Ali" /></div>
+                            </>
+                        )}
+                        <div className="border-t pt-2 space-y-2">
+                            <div className="flex justify-between text-sm"><span>Subtotal</span><span>{currency} {subtotal.toLocaleString()}</span></div>
+                            <div className="flex justify-between text-sm"><span>GST 18%</span><span>{currency} {gst.toLocaleString()}</span></div>
+                            <div className="flex justify-between font-bold text-lg"><span>Total</span><span>{currency} {total.toLocaleString()}</span></div>
                         </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">GST (18%):</span>
-                            <span className="font-medium">{currency} {gst.toLocaleString()}</span>
+                        <div className="grid grid-cols-2 gap-2 pt-4">
+                            <Button variant="outline" onClick={() => setShowConfirm('draft')}>Save Draft</Button>
+                            <Button onClick={() => setShowConfirm('approval')}>Submit</Button>
                         </div>
-                        <div className="flex justify-between text-lg font-bold border-t pt-2">
-                            <span>Total:</span>
-                            <span>{currency} {total.toLocaleString()}</span>
-                        </div>
-                        <Button className="w-full mt-4" size="lg" onClick={() => setShowConfirm(true)} disabled={items.length === 0}>
-                            <Save className="mr-2 h-4 w-4" /> Save Quotation
-                        </Button>
                     </CardContent>
                 </Card>
             </div>
 
             <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-sm font-medium">Line Items</CardTitle>
-                    <Button size="sm" onClick={addLineItem} variant="outline">
-                        <Plus className="mr-2 h-4 w-4" /> Add Item
-                    </Button>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-6">
-                        {items.map((item, index) => (
-                            <div key={item.id} className="p-4 border rounded-lg bg-accent/5 relative space-y-4">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="absolute top-2 right-2 text-destructive"
-                                    onClick={() => removeItem(item.id)}
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-xs">Product Name *</Label>
-                                        <Input
-                                            value={item.productName}
-                                            onChange={e => updateItem(item.id, "productName", e.target.value)}
-                                            placeholder="e.g. Gate Valve, Flange, etc."
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-xs">Description (Rich Text)</Label>
-                                        <Textarea
-                                            value={item.description}
-                                            onChange={e => updateItem(item.id, "description", e.target.value)}
-                                            placeholder="Enter detailed technical specs..."
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
-                                    <div className="space-y-2">
-                                        <Label className="text-xs">Quantity</Label>
-                                        <Input type="number" value={item.quantity} onChange={e => updateItem(item.id, "quantity", parseFloat(e.target.value))} className="h-8" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-xs">Unit</Label>
-                                        <Select value={item.unit} onValueChange={v => updateItem(item.id, "unit", v)}>
-                                            <SelectTrigger className="h-8">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {uoms.map(u => <SelectItem key={u.id} value={u.code}>{u.code}</SelectItem>)}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    {/* Manual Price Input - Explicitly showing this as requested */}
-                                    <div className="space-y-2">
-                                        <Label className="text-xs">Unit Price</Label>
-                                        <Input type="number" value={item.unitPrice} onChange={e => updateItem(item.id, "unitPrice", parseFloat(e.target.value))} className="h-8" />
-                                    </div>
-                                    <div className="text-right font-bold pb-2">
-                                        {currency} {item.amount.toLocaleString()}
-                                    </div>
-                                </div>
+                <CardHeader className="flex flex-row items-center justify-between"><CardTitle>Line Items</CardTitle><Button size="sm" onClick={addLineItem}><Plus className="h-4 w-4 mr-2" /> Add</Button></CardHeader>
+                <CardContent className="space-y-4">
+                    {items.map(item => (
+                        <div key={item.id} className="p-4 border rounded-lg bg-accent/5 relative space-y-4">
+                            <Button variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive" onClick={() => removeItem(item.id)}><Trash2 className="h-4 w-4" /></Button>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2"><Label>Product Name *</Label><Input value={item.productName} onChange={e => updateItem(item.id, "productName", e.target.value)} /></div>
+                                <div className="space-y-2"><Label>Specifications / Description</Label><Textarea value={item.description} onChange={e => updateItem(item.id, "description", e.target.value)} /></div>
                             </div>
-                        ))}
-                        {items.length === 0 && (
-                            <div className="text-center py-12 border-2 border-dashed rounded-lg text-muted-foreground">
-                                No items added yet. Click "Add Item" to begin.
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
+                                <div className="space-y-2"><Label>Quantity</Label><Input type="number" value={item.quantity} onChange={e => updateItem(item.id, "quantity", parseFloat(e.target.value))} /></div>
+                                <div className="space-y-2"><Label>Unit</Label><Select value={item.unit} onValueChange={v => updateItem(item.id, "unit", v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{uoms.map(u => <SelectItem key={u.id} value={u.code}>{u.code}</SelectItem>)}</SelectContent></Select></div>
+                                <div className="space-y-2"><Label>Unit Price</Label><Input type="number" value={item.unitPrice} onChange={e => updateItem(item.id, "unitPrice", parseFloat(e.target.value))} /></div>
+                                <div className="text-right font-bold pb-2">{currency} {item.amount.toLocaleString()}</div>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    ))}
                 </CardContent>
             </Card>
 
             <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-sm font-medium">Terms & Conditions</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle>Terms & Conditions</CardTitle></CardHeader>
                 <CardContent>
-                    <TermsConditionsEditor
-                        initialSelectedTerms={selectedQuotationTerms}
-                        onTermsChange={setSelectedQuotationTerms}
-                    />
+                    <TermsConditionsEditor initialSelectedTerms={selectedQuotationTerms} onTermsChange={setSelectedQuotationTerms} />
                 </CardContent>
             </Card>
 
-            <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+            <Dialog open={!!showConfirm} onOpenChange={(open) => !open && setShowConfirm(false)}>
                 <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Confirm Quotation</DialogTitle>
-                        <DialogDescription>
-                            Create non-standard quotation for {currency} {total.toLocaleString()}?
-                        </DialogDescription>
-                    </DialogHeader>
+                    <DialogHeader><DialogTitle>Confirm Quotation</DialogTitle><DialogDescription>Total: {currency} {total.toLocaleString()}</DialogDescription></DialogHeader>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setShowConfirm(false)}>Cancel</Button>
-                        <Button onClick={handleSubmit} disabled={loading}>
-                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Confirm
-                        </Button>
+                        <Button onClick={handleSubmit} disabled={loading}>{loading ? "Saving..." : "Confirm"}</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

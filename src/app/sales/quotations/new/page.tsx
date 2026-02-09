@@ -14,9 +14,12 @@ function QuotationTypeSelectionForm() {
   const searchParams = useSearchParams()
   const enquiryId = searchParams.get("enquiryId")
   const [quotationType, setQuotationType] = useState<"STANDARD" | "NON_STANDARD">("STANDARD")
+  const [marketType, setMarketType] = useState<"DOMESTIC" | "EXPORT">("DOMESTIC")
 
   const handleNext = () => {
     const params = new URLSearchParams(searchParams.toString())
+    params.set("market", marketType)
+
     if (quotationType === "STANDARD") {
       router.push(`/sales/quotations/new/standard?${params.toString()}`)
     } else {
@@ -36,67 +39,123 @@ function QuotationTypeSelectionForm() {
         </div>
       </div>
 
-      <Card className="border-2">
-        <CardHeader>
-          <CardTitle>Quotation Path</CardTitle>
-          <CardDescription>
-            Select the type of items you are quoting to use the specialized entry form.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <RadioGroup
-            value={quotationType}
-            onValueChange={(v: any) => setQuotationType(v)}
-            className="grid gap-4 md:grid-cols-2"
-          >
-            <div>
-              <RadioGroupItem
-                value="STANDARD"
-                id="standard"
-                className="peer sr-only"
-              />
-              <Label
-                htmlFor="standard"
-                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-6 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer h-full"
-              >
-                <Package className="mb-3 h-10 w-10 text-primary" />
-                <div className="text-center space-y-1">
-                  <p className="text-lg font-bold">Standard Quotation</p>
-                  <p className="text-xs text-muted-foreground">
-                    For Pipes, Fittings, Flanges. Uses master data and auto-calculates weights.
-                  </p>
-                </div>
-              </Label>
-            </div>
+      <div className="grid gap-6">
+        <Card className="border-2">
+          <CardHeader>
+            <CardTitle>1. Quotation Path</CardTitle>
+            <CardDescription>
+              Select the type of items you are quoting to use the specialized entry form.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RadioGroup
+              value={quotationType}
+              onValueChange={(v: any) => setQuotationType(v)}
+              className="grid gap-4 md:grid-cols-2"
+            >
+              <div>
+                <RadioGroupItem
+                  value="STANDARD"
+                  id="standard"
+                  className="peer sr-only"
+                />
+                <Label
+                  htmlFor="standard"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-6 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer h-full"
+                >
+                  <Package className="mb-3 h-10 w-10 text-primary" />
+                  <div className="text-center space-y-1">
+                    <p className="text-lg font-bold">Standard Quotation</p>
+                    <p className="text-xs text-muted-foreground">
+                      For Pipes, Fittings, Flanges. Uses master data.
+                    </p>
+                  </div>
+                </Label>
+              </div>
 
-            <div>
-              <RadioGroupItem
-                value="NON_STANDARD"
-                id="non-standard"
-                className="peer sr-only"
-              />
-              <Label
-                htmlFor="non-standard"
-                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-6 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer h-full"
-              >
-                <FileText className="mb-3 h-10 w-10 text-primary" />
-                <div className="text-center space-y-1">
-                  <p className="text-lg font-bold">Non-Standard Quotation</p>
-                  <p className="text-xs text-muted-foreground">
-                    For Valves, Instruments, and others. Supports rich-text descriptions.
-                  </p>
-                </div>
-              </Label>
-            </div>
-          </RadioGroup>
+              <div>
+                <RadioGroupItem
+                  value="NON_STANDARD"
+                  id="non-standard"
+                  className="peer sr-only"
+                />
+                <Label
+                  htmlFor="non-standard"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-6 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer h-full"
+                >
+                  <FileText className="mb-3 h-10 w-10 text-primary" />
+                  <div className="text-center space-y-1">
+                    <p className="text-lg font-bold">Non-Standard Quotation</p>
+                    <p className="text-xs text-muted-foreground">
+                      For Valves, Instruments, and others. Supports rich-text.
+                    </p>
+                  </div>
+                </Label>
+              </div>
+            </RadioGroup>
+          </CardContent>
+        </Card>
 
-          <div className="mt-8 flex justify-end">
-            <Button onClick={handleNext} className="w-full md:w-auto px-12 h-11 text-base font-semibold">
-              Next <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        <Card className="border-2">
+          <CardHeader>
+            <CardTitle>2. Market Type</CardTitle>
+            <CardDescription>
+              Select the target market for this quotation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RadioGroup
+              value={marketType}
+              onValueChange={(v: any) => setMarketType(v)}
+              className="grid gap-4 md:grid-cols-2"
+            >
+              <div>
+                <RadioGroupItem
+                  value="DOMESTIC"
+                  id="domestic"
+                  className="peer sr-only"
+                />
+                <Label
+                  htmlFor="domestic"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-6 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer h-full"
+                >
+                  <div className="text-center space-y-1">
+                    <p className="text-lg font-bold">Domestic</p>
+                    <p className="text-xs text-muted-foreground">
+                      For local customers (INR currency).
+                    </p>
+                  </div>
+                </Label>
+              </div>
+
+              <div>
+                <RadioGroupItem
+                  value="EXPORT"
+                  id="export"
+                  className="peer sr-only"
+                />
+                <Label
+                  htmlFor="export"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-6 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer h-full"
+                >
+                  <div className="text-center space-y-1">
+                    <p className="text-lg font-bold">International (Export)</p>
+                    <p className="text-xs text-muted-foreground">
+                      For overseas customers (Foreign currency).
+                    </p>
+                  </div>
+                </Label>
+              </div>
+            </RadioGroup>
+
+            <div className="mt-8 flex justify-end">
+              <Button onClick={handleNext} className="w-full md:w-auto px-12 h-11 text-base font-semibold">
+                Proceed <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

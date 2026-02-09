@@ -9,7 +9,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 const connectionString = process.env.DATABASE_URL;
-const docsDir = '/Users/adi0220/projects/erp_software/documents';
+const docsDir = path.join(process.cwd(), 'documents');
 
 async function loadMasters() {
     const client = new Client({ connectionString });
@@ -17,6 +17,9 @@ async function loadMasters() {
 
     try {
         console.log('--- Starting Master Data Load ---');
+
+        // Clear existing data to ensure only Excel values are used (as per user request)
+        await client.query('TRUNCATE TABLE testing_standards CASCADE');
 
         // 1. Load Pipe Sizes (CS & AS)
         await loadPipeSizes(client, 'PIPES SIZE MASTER CS & AS PIPES.xlsx', ['CS', 'AS']);
