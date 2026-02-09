@@ -39,6 +39,11 @@ export const quotationItemSchema = z.object({
   // New Technical Fields
   tag_no: z.string().optional().nullable(),
   dwg_no: z.string().optional().nullable(),
+  item_no: z.string().optional().nullable(),
+  unit_weight: z.number().optional().nullable(),
+  total_weight_mt: z.number().optional().nullable(),
+  delivery_period: z.string().optional().nullable(),
+  customer_material_code: z.string().optional().nullable(),
   dimension_tolerance: z.string().optional().nullable(),
   dm_type: z.string().optional().nullable(),
   wt_type: z.string().optional().nullable(),
@@ -298,44 +303,48 @@ export function isValidStatusTransition(entity: string, currentStatus: string, n
   return allowedNext.includes(newStatus)
 }
 
+// Address Schema
+export const addressSchema = z.object({
+  id: z.string().uuid().optional(),
+  address_type: z.enum(['Registered Office', 'Branch', 'Warehouse', 'Billing']),
+  address_line1: z.string().min(1, "Address line 1 is required"),
+  address_line2: z.string().optional().nullable(),
+  city: z.string().min(1, "City is required"),
+  state: z.string().min(1, "State is required"),
+  country: z.string().default('India'),
+  pincode: z.string().min(1, "Pincode is required"),
+  gstin: z.string().optional().nullable(),
+  is_default: z.boolean().default(false),
+})
+
 // Company Master Schema
 export const createCompanySchema = z.object({
   name: z.string().min(1, "Company name is required"),
   company_type: z.enum(['Proprietorship', 'Partnership', 'LLP', 'Limited', 'Pvt Ltd', 'HUF']),
-  gstin: z.string().optional(),
-  pan: z.string().optional(),
-  tan: z.string().optional(),
-  cin: z.string().optional(),
-  email: z.string().email().optional().or(z.literal('')),
-  website: z.string().url().optional().or(z.literal('')),
-  telephone: z.string().optional(),
-  mobile: z.string().optional(),
-  registered_address_line1: z.string().optional(),
-  registered_address_line2: z.string().optional(),
-  registered_city: z.string().optional(),
-  registered_state: z.string().optional(),
-  registered_pincode: z.string().optional(),
-  registered_country: z.string().default('India'),
-  warehouse_address_line1: z.string().optional(),
-  warehouse_address_line2: z.string().optional(),
-  warehouse_city: z.string().optional(),
-  warehouse_state: z.string().optional(),
-  warehouse_pincode: z.string().optional(),
-  warehouse_country: z.string().default('India'),
-  current_financial_year: z.string().optional(),
+  code: z.string().min(2, "Company code is required").max(10),
+  pan: z.string().optional().nullable(),
+  tan: z.string().optional().nullable(),
+  cin: z.string().optional().nullable(),
+  email: z.string().email().optional().or(z.literal('')).nullable(),
+  website: z.string().url().optional().or(z.literal('')).nullable(),
+  telephone: z.string().optional().nullable(),
+  mobile: z.string().optional().nullable(),
+  addresses: z.array(addressSchema).min(1, "At least one address is required"),
+  current_financial_year: z.string().optional().nullable(),
+  logo_url: z.string().optional().nullable(),
 })
 
 // Employee Master Schema
 export const createEmployeeSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
-  last_name: z.string().optional(),
-  employee_code: z.string().optional(),
+  last_name: z.string().optional().nullable(),
+  employee_code: z.string().optional().nullable(),
   email: z.string().email("Invalid email address"),
-  mobile: z.string().optional(),
-  telephone: z.string().optional(),
-  department: z.enum(['Sales', 'Purchase', 'Quality', 'Warehouse', 'Accounts', 'Admin', 'Management']),
-  designation: z.string().optional(),
-  company_id: z.string().uuid().optional(),
+  mobile: z.string().optional().nullable(),
+  telephone: z.string().optional().nullable(),
+  department: z.enum(['Sales', 'Purchase', 'Quality', 'Warehouse', 'Accounts', 'Admin', 'Management', 'Purchase', 'Quality', 'Stores']), // Updated roles from doc
+  designation: z.string().optional().nullable(),
+  company_id: z.string().uuid().optional().nullable(),
   reporting_manager_id: z.string().uuid().optional().nullable(),
   date_of_joining: z.string().optional().nullable(),
 })

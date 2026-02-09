@@ -1,0 +1,90 @@
+
+
+
+    
+    ERP SCREEN MAPPING DOCUMENT
+    
+    SOP to ERP Functional &amp; Screen-Level Mapping
+    
+    (ISO 9001:2018 Compliant – Oil, Gas &amp; Petrochemical Trading ERP)
+    
+    
+    
+    
+    1. Purpose of This Document
+    This document maps each SOP step to specific ERP screens, functions, inputs, outputs, and controls. It is intended for: - ERP software developers - ERP implementation partners - UAT (User Acceptance Testing) - ISO 9001 auditors (objective evidence of process control)
+    
+    
+    
+    2. ERP User Roles Reference
+    RoleERP AccessSalesEnquiry, Quotation, SOPurchasePR, PO, VendorQCInspection, MTC, NCRStoresGRN, Stock, DispatchAccountsInvoice, ReceiptManagementMIS, Approval
+    
+    
+    
+    3. SOP–01: Enquiry &amp; Quotation Management – Screen Mapping
+    SOP StepERP Screen NameKey FieldsOutputControls / ISO EvidenceRegister EnquiryEnquiry MasterCustomer, Project, Items, SpecsEnquiry No.Clause 8.2Prepare QuotationQuotation EntryCost, Margin, ValidityDraft QuotationVersion controlApprovalQuotation ApprovalApprover, RemarksApproved QuotationClause 7.5Issue QuotationQuotation Print / EmailPDF, Email logSent QuotationRecord retention
+    
+    
+    
+    4. SOP–02: Sales Order Management – Screen Mapping
+    SOP StepERP Screen NameKey FieldsOutputControlsPO VerificationPO Review ScreenCustomer PO, Ref QuotationPO AcceptedContract reviewCreate SOSales Order EntryItems, Qty, DeliverySO No.TraceabilityInventory ReservationSO AllocationHeat No., QtyReserved StockFIFO control
+    
+    
+    
+    5. SOP–03: Purchase Order Management – Screen Mapping
+    SOP StepERP Screen NameKey FieldsOutputControlsPurchase RequisitionPR EntrySO Ref, SpecsPR No.ApprovalVendor SelectionVendor MasterApproved VendorVendor LinkedClause 8.4PO CreationPO EntryTechnical specsPO No.Revision controlFollow-upPO TrackingDelivery dateStatusDelay alerts
+    
+    
+    
+    6. SOP–04: Inventory &amp; Stores – Screen Mapping
+    SOP StepERP Screen NameKey FieldsOutputControlsMaterial ReceiptGRN EntryPO, Qty, Heat No.GRN No.TraceabilityStock LocationStock Location MasterRack, WarehouseLocation TagPreservationStock IssueStock Issue ScreenSO No., QtyIssue SlipAuthorization
+    
+    
+    
+    7. SOP–05: Quality Control &amp; MTC – Screen Mapping
+    SOP StepERP Screen NameKey FieldsOutputControlsIncoming InspectionInspection EntryDim, Chem, MechInspection ReportClause 8.6MTC UploadMTC RepositoryHeat No., FileLinked MTCDocument controlNCR IssueNCR ModuleNon-conformanceNCR No.Clause 8.7Release MaterialQC ReleaseAccept / RejectStock StatusApproval
+    
+    
+    
+    8. SOP–06: Dispatch, Invoicing &amp; Payment – Screen Mapping
+    SOP StepERP Screen NameKey FieldsOutputControlsPacking ListPacking List EntrySO, QtyPacking ListVerificationDispatchDispatch NoteVehicle, LRDispatch DocTraceabilityInvoiceInvoice EntryTax, ValueInvoice No.GST compliancePayment ReceiptReceipt EntryMode, RefReceipt No.Ageing
+    
+    
+    
+    9. SOP–07: MIS, Audit &amp; Management Review – Screen Mapping
+    SOP StepERP Screen NameOutputSales MISSales DashboardSales TrendsInventory AgeingInventory ReportSlow-moving stockNCR AnalysisQuality DashboardNCR TrendsManagement ReviewMIS ExportReview Minutes
+    
+    
+    
+    10. Mandatory System Controls (Non-Negotiable)
+    Role-based access control
+    Auto document numbering
+    Audit trail for every edit
+    No deletion of approved records
+    Mandatory attachments (MTC, Inspection)
+    
+    
+    
+    11. UAT Acceptance Checklist (Extract)
+    Enquiry traceable till invoice
+    Heat No. traceable till dispatch
+    NCR linked to corrective action
+    MIS generated without manual input
+    
+    
+    
+    END OF DOCUMENT
+    This document must be used by developers during design &amp; by auditors during certification.
+    
+    
+    
+      
+        
+                
+        
+        
+              
+      
+    
+  
+

@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { apiError, apiSuccess, logAuditEvent } from '@/lib/api-utils'
 import { z } from 'zod'
+import { generateMaterialCode } from '@/lib/material-utils'
 
 const createProductSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -120,31 +121,18 @@ export async function POST(request: NextRequest) {
     return apiError('Product code already exists')
   }
 
-  // Auto-generate Internal Material Code logic (CATEGORY-MATERIAL-NNNN)
+  // Auto-generate Internal Material Code logic (FORM-PRODUCT-SPEC-SIZE)
   let internalCode = validation.data.internal_material_code
   if (!internalCode) {
-    const categoryPrefix = (validation.data.category || 'GEN').substring(0, 4).toUpperCase()
-    const materialPrefix = (validation.data.grade || 'MAT').substring(0, 4).toUpperCase()
+    internalCode = generateMaterialCode({
+      category: validation.data.category,
+      grade: validation.data.grade,
+      standard: validation.data.standard,
+      size: validation.data.size,
+      schedule: validation.data.schedule,
+    })
 
-    // Find latest code for this category and material
-    const { data: lastProducts } = await adminClient
-      .from('products')
-      .select('internal_material_code')
-      .ilike('internal_material_code', `${categoryPrefix}-${materialPrefix}-%`)
-      .order('internal_material_code', { ascending: false })
-      .limit(1)
-
-    let nextNum = 1
-    if (lastProducts && lastProducts.length > 0) {
-      const lastCode = lastProducts[0].internal_material_code
-      const parts = lastCode.split('-')
-      const lastNum = parseInt(parts[parts.length - 1])
-      if (!isNaN(lastNum)) {
-        nextNum = lastNum + 1
-      }
-    }
-
-    internalCode = `${categoryPrefix}-${materialPrefix}-${nextNum.toString().padStart(4, '0')}`
+    // Check if generated code exists, if so append sequence if needed (optional, keeping it simple for now)
   }
 
   const productData = {

@@ -25,6 +25,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   ArrowLeft, ArrowRight, FileText, User, Calendar, DollarSign,
   CheckCircle, X, Clock, Loader2, Send, AlertTriangle, AlertCircle,
@@ -71,6 +72,7 @@ export default function QuotationDetailPage() {
   const [approvalRemarks, setApprovalRemarks] = useState("")
   const [rejectionRemarks, setRejectionRemarks] = useState("")
   const [revisionReason, setRevisionReason] = useState("")
+  const [hidePrices, setHidePrices] = useState(false)
 
   // Email states
   const [emailTo, setEmailTo] = useState("")
@@ -211,7 +213,7 @@ export default function QuotationDetailPage() {
               </div>
             )}
             {quotation.status === "approved" && <Button onClick={() => setShowSendDialog(true)}>Send to Customer</Button>}
-            <Button variant="ghost" size="icon" onClick={() => window.open(`/api/documents/quotation/${id}/pdf`, '_blank')}><Printer className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" onClick={() => setShowPrintDialog(true)}><Printer className="h-4 w-4" /></Button>
           </div>
         </div>
 
@@ -318,6 +320,36 @@ export default function QuotationDetailPage() {
       {/* Dialogs Placeholder */}
       <Dialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}><DialogContent><DialogHeader><DialogTitle>Submit for Approval</DialogTitle></DialogHeader><DialogFooter><Button onClick={() => handleAction('submit_for_approval')}>Confirm</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}><DialogContent><DialogHeader><DialogTitle>Approve Quotation</DialogTitle></DialogHeader><DialogFooter><Button onClick={() => handleAction('approve', approvalRemarks)}>Approve</Button></DialogFooter></DialogContent></Dialog>
+
+      <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Print Options</DialogTitle>
+            <DialogDescription>
+              Select how you want to print the quotation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center space-x-2 py-4">
+            <Checkbox
+              id="hide-prices"
+              checked={hidePrices}
+              onCheckedChange={(checked) => setHidePrices(checked as boolean)}
+            />
+            <Label htmlFor="hide-prices" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              Hide prices and totals (Show "QUOTED" instead)
+            </Label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPrintDialog(false)}>Cancel</Button>
+            <Button onClick={() => {
+              window.open(`/api/documents/quotation/${id}/pdf?price=${!hidePrices}`, '_blank')
+              setShowPrintDialog(false)
+            }}>
+              Generate PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   )
 }

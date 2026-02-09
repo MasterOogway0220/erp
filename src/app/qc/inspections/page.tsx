@@ -44,6 +44,7 @@ const inspectionColors: Record<string, string> = {
 interface InspectionFormData {
   visualInspection: "pass" | "fail" | ""
   dimensionCheck: "pass" | "fail" | ""
+  chemicalMechanicalCheck: "pass" | "fail" | "" // New granular check
   mtcVerification: "pass" | "fail" | ""
   remarks: string
   mtcNumber: string
@@ -56,50 +57,54 @@ export default function InspectionsPage() {
   const [formData, setFormData] = useState<InspectionFormData>({
     visualInspection: "",
     dimensionCheck: "",
+    chemicalMechanicalCheck: "",
     mtcVerification: "",
     remarks: "",
     mtcNumber: "",
   })
-  
-  const pendingItems = inventory.filter(i => i.inspectionStatus === 'pending')
-  const acceptedItems = inventory.filter(i => i.inspectionStatus === 'accepted')
-  const rejectedItems = inventory.filter(i => i.inspectionStatus === 'rejected')
-  const holdItems = inventory.filter(i => i.inspectionStatus === 'hold')
-  
+
+  const pendingItems = inventory.filter((i: any) => i.inspectionStatus === 'pending')
+  const acceptedItems = inventory.filter((i: any) => i.inspectionStatus === 'accepted')
+  const rejectedItems = inventory.filter((i: any) => i.inspectionStatus === 'rejected')
+  const holdItems = inventory.filter((i: any) => i.inspectionStatus === 'hold')
+
   const handleStartInspection = (item: typeof inventory[0]) => {
     setSelectedItem(item)
     setFormData({
       visualInspection: "",
       dimensionCheck: "",
+      chemicalMechanicalCheck: "",
       mtcVerification: "",
       remarks: "",
       mtcNumber: item.mtcNumber || "",
     })
     setInspectOpen(true)
   }
-  
+
   const handleInspectionSubmit = (result: 'accepted' | 'rejected' | 'hold') => {
     if (!selectedItem) return
-    
-    const allPass = formData.visualInspection === 'pass' && 
-                    formData.dimensionCheck === 'pass' && 
-                    formData.mtcVerification === 'pass'
-    
+
+    const allPass = formData.visualInspection === 'pass' &&
+      formData.dimensionCheck === 'pass' &&
+      formData.chemicalMechanicalCheck === 'pass' &&
+      formData.mtcVerification === 'pass'
+
     updateInventoryItem(selectedItem.id, {
       inspectionStatus: result,
       mtcNumber: formData.mtcNumber,
       availableQuantity: result === 'accepted' ? selectedItem.quantity - selectedItem.reservedQuantity : 0,
     })
-    
+
     addInspection({
       id: Math.random().toString(36).substring(2, 15),
-      grnId: grns.find(g => g.grnNumber === selectedItem.grnNumber)?.id || '',
+      grnId: grns.find((g: any) => g.grnNumber === selectedItem.grnNumber)?.id || '',
       grnNumber: selectedItem.grnNumber || '',
       productName: selectedItem.productName,
       heatNumber: selectedItem.heatNumber,
       checklistItems: [
         { parameter: 'Visual Inspection', specification: 'No visible defects', actualValue: formData.visualInspection, result: formData.visualInspection as 'pass' | 'fail' },
         { parameter: 'Dimension Check', specification: 'Within tolerance', actualValue: formData.dimensionCheck, result: formData.dimensionCheck as 'pass' | 'fail' },
+        { parameter: 'Chemical & Mechanical', specification: 'Matches grade spec', actualValue: formData.chemicalMechanicalCheck, result: formData.chemicalMechanicalCheck as 'pass' | 'fail' },
         { parameter: 'MTC Verification', specification: 'Certificate matches', actualValue: formData.mtcVerification, result: formData.mtcVerification as 'pass' | 'fail' },
       ],
       overallResult: result,
@@ -107,7 +112,7 @@ export default function InspectionsPage() {
       inspectedAt: new Date().toISOString().split('T')[0],
       remarks: formData.remarks,
     })
-    
+
     if (result === 'rejected') {
       addNCR({
         id: Math.random().toString(36).substring(2, 15),
@@ -120,11 +125,11 @@ export default function InspectionsPage() {
         createdAt: new Date().toISOString().split('T')[0],
       })
     }
-    
+
     setInspectOpen(false)
     setSelectedItem(null)
   }
-  
+
   return (
     <PageLayout title="Inspections">
       <div className="space-y-6">
@@ -134,7 +139,7 @@ export default function InspectionsPage() {
             <p className="text-muted-foreground">Manage incoming material inspections (ISO 8.6)</p>
           </div>
         </div>
-        
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardContent className="p-4">
@@ -189,7 +194,7 @@ export default function InspectionsPage() {
             </CardContent>
           </Card>
         </div>
-        
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -221,7 +226,7 @@ export default function InspectionsPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  pendingItems.map((item) => (
+                  pendingItems.map((item: any) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{item.productName}</TableCell>
                       <TableCell className="font-mono text-sm">{item.heatNumber}</TableCell>
@@ -245,7 +250,7 @@ export default function InspectionsPage() {
             </Table>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">All Inspected Materials</CardTitle>
@@ -290,7 +295,7 @@ export default function InspectionsPage() {
           </CardContent>
         </Card>
       </div>
-      
+
       <Dialog open={inspectOpen} onOpenChange={setInspectOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
@@ -321,7 +326,7 @@ export default function InspectionsPage() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>MTC Number</Label>
@@ -331,8 +336,8 @@ export default function InspectionsPage() {
                     placeholder="Enter Material Test Certificate number"
                   />
                 </div>
-                
-                <div className="grid grid-cols-3 gap-4">
+
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Visual Inspection</Label>
                     <Select
@@ -364,6 +369,21 @@ export default function InspectionsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
+                    <Label>Chemical & Mechanical</Label>
+                    <Select
+                      value={formData.chemicalMechanicalCheck}
+                      onValueChange={(val) => setFormData(prev => ({ ...prev, chemicalMechanicalCheck: val as "pass" | "fail" }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pass">Pass</SelectItem>
+                        <SelectItem value="fail">Fail</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
                     <Label>MTC Verification</Label>
                     <Select
                       value={formData.mtcVerification}
@@ -379,7 +399,7 @@ export default function InspectionsPage() {
                     </Select>
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label>Remarks / Observations</Label>
                   <Textarea
@@ -390,7 +410,7 @@ export default function InspectionsPage() {
                   />
                 </div>
               </div>
-              
+
               <DialogFooter className="gap-2 sm:gap-0">
                 <Button
                   variant="destructive"
